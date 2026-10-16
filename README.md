@@ -17,7 +17,9 @@
 |----|------|
 | WASD / 方向键 | 移动 |
 | Space | 跳 |
-| 鼠标左键 / F | 推人 |
+| 鼠标左键 / F / E | 推人 |
+| P2：方向键 / Numpad1 / Numpad0 | 同屏双人移动 / 跳 / 推 |
+| Esc | 暂停；结果页 R 重开 |
 
 （Wave 2：移动端触控 · 出局观战。）
 
@@ -35,6 +37,7 @@ npx serve .
 - [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) — Wave 1–3 + Spread + Engineering + Juice + Micro tweaks 验收条（#1–#10 · A/B/C/F/G · T1–T8 · J1–J8 · M1–M8）
 - [CODEX_HANDOFF.md](./CODEX_HANDOFF.md) — 给编码 agent 的交接（指向 PRD §9–§13；Spread/Engineering/Juice/Micro）
 - [ASSET_BRIEF.md](./ASSET_BRIEF.md) — 资产说明
+- [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) — 当前验收实现与验证
 
 ## License / 版权说明
 
