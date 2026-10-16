@@ -39,4 +39,4 @@ The script installs the Playwright browser only when `VERIFY_INSTALL_BROWSER=1` 
 
 ## Browser gotcha
 
-The authored tile GLB is large enough that Chromium/WebGL may take longer than the former 45-second CI test timeout. When Playwright times out while waiting for `#splash` or `window.__game.state`, inspect the browser console and asset requests, then rerun with a longer local timeout before treating the app as broken. A successful live HTTP smoke proves deployment reachability but does not replace the browser interaction check.
+The authored tile GLB is parsed after the Start gate and can still take time to hot-replace the arena mesh. If Playwright times out while waiting for `#splash` or `window.__game.state`, inspect the browser console and asset requests, then rerun with a longer local timeout before treating the app as broken. A successful live HTTP smoke proves deployment reachability but does not replace the browser interaction check.
