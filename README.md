@@ -39,6 +39,12 @@ npx serve .
 - [ASSET_BRIEF.md](./ASSET_BRIEF.md) — 资产说明
 - [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) — 当前验收实现与验证
 
+
+## Assets / 资产
+
+Wave 1: `assets/hero` · `rival` · `tile` · `spikebox`  
+Wave 3 (this PR): `assets/tile_grass` · `tile_ice` · `tile_neon` · `skin_mint` — Tripo theme tiles (PRD P2–P4) + mint unlock skin (N2). **Not loaded by `game.js` yet.**
+
 ## License / 版权说明
 
 原创角色与玩法设定（BlockBean / 方块豆人）。**不包含** Minecraft、Fall Guys 或其它第三方 IP 的商标、角色或素材。仅作氛围参考描述。
