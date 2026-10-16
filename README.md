@@ -2,7 +2,8 @@
 
 **体素塌陷淘汰赛** — Minecraft 手感 × Fall Guys 乱斗氛围的原创 IP（非官方联动）。
 
-**Play：** https://blockbean-collapse.vercel.app
+**Play：** https://blockbean-collapse.vercel.app  
+**PRD：** [PRD.md](./PRD.md) **v1**（v0 demo shipped · Wave 1–3 next）
 
 ![Key art](./concept/blockbean_keyart.jpg)
 
@@ -18,7 +19,7 @@
 | Space | 跳 |
 | 鼠标左键 / F | 推人 |
 
-（Wave 2 将加移动端触控。）
+（Wave 2：移动端触控 · 出局观战。）
 
 ## Local run / 本地运行
 
@@ -30,9 +31,9 @@ npx serve .
 
 ## Docs
 
-- [PRD.md](./PRD.md) — 产品需求
-- [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) — 下一波优先项（Wave 1–3）
-- [CODEX_HANDOFF.md](./CODEX_HANDOFF.md) — 给编码 agent 的交接
+- [PRD.md](./PRD.md) — 产品需求 **v1**（Shipped / Waves / Codex 说明）
+- [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) — Wave 1–3 + 验收条（用户已批准 #1–#10）
+- [CODEX_HANDOFF.md](./CODEX_HANDOFF.md) — 给编码 agent 的交接（指向 PRD §9–§13）
 - [ASSET_BRIEF.md](./ASSET_BRIEF.md) — 资产说明
 
 ## License / 版权说明

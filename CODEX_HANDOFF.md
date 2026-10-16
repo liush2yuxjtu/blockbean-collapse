@@ -1,25 +1,48 @@
-# CODEX HANDOFF — BlockBean Collapse v0
-Folder: `/workspace/gallery/tripo/blockbean-collapse/` (only edit here). Serve: static, gallery root `/workspace/gallery` on :8900. URL `/tripo/blockbean-collapse/`.
+# CODEX HANDOFF — BlockBean Collapse (PRD v1)
+
+**Canonical repo:** https://github.com/liush2yuxjtu/blockbean-collapse (`main` → Vercel auto-deploy)  
+**Live:** https://blockbean-collapse.vercel.app  
+**Gallery mirror (optional):** `/workspace/gallery/tripo/blockbean-collapse/`
+
+> **Start here for what to build:** [PRD.md](./PRD.md) §9 下一波分诊 · §10 Scope · §12 Codex 执行说明 · §13 Success  
+> **Checkbox backlog + acceptance:** [TRIAGE_WAVES.md](./TRIAGE_WAVES.md)
 
 ## File map
-- `index.html` — splash (keyart), importmap three@0.160.0 (unpkg), loads `game.js`.
-- `game.js` — asset loading + `fit()` normalize, `reset()` round setup, `control()` input/AI/push, `physics()` gravity + tile ground + bean separation, `loop()` tiles crack/fall, spikebox, win check, camera, HUD. Debug: `window.__game`.
-- `assets/{hero,rival,tile,spikebox}/model.glb` (2–4.5 MB each; tile is cloned 64×).
 
-## Known issues（已知问题）
-1. 物理是手写 AABB（未用 cannon-es）：站在方块边缘时只判断中心点所在格子，会"悬空站立"或提前掉落。Repro: walk to tile edge next to a gap.
-2. 方块 GLB 的顶面高度用包围盒对齐，模型若不平整，豆人可能陷入/浮空。
-3. Rival 染色直接覆盖 material.color，带贴图时颜色可能偏暗/怪。
-4. AI 很笨：随机选附近安全格，常一起挤下去；不会躲尖刺箱。
-5. 推（E）只有缩放反馈，无动画/音效/粒子；玩家掉落后只能观战，没有观战切换。
-6. 64 个 tile clone 每个复制材质 → 绘制调用多，低端机掉帧（可用 InstancedMesh）。
-7. 首次加载 ~12 MB GLB，没有进度条；无移动端触控。
-8. 计时结束得分规则简单（存活+10，推人+1，仅玩家计分推人分）。
-9. 未做 sudden-death（PRD 中最后 2×2 加剧抖动）。
+- `index.html` — splash (keyart), importmap three@0.160.0 (unpkg), loads `game.js`, Vercel Insights `/_vercel/insights`
+- `game.js` — asset loading + `fit()` normalize, `reset()` round setup, `control()` input/AI/push, `physics()` gravity + tile ground + bean separation, `loop()` tiles crack/fall, spikebox, win check, camera, HUD. Debug: `window.__game`
+- `assets/{hero,rival,tile,spikebox}/model.glb` (2–4.5 MB each; tile cloned 64× today — Wave 2 → InstancedMesh)
+- Docs: `PRD.md` (v1), `TRIAGE_WAVES.md`, `ASSET_BRIEF.md`, `README.md`
 
-## Acceptance checks
-- `curl -o /dev/null -w '%{http_code}' https://resume-box.tail6a877d.ts.net/tripo/blockbean-collapse/` → 200
-- 点击开始 → 倒计时 3-2-1 → WASD 可移动、Space 跳、E 推开近距离 bot
-- 60s 内平台逐步变红坠落；掉出 y<-15 判出局；最后一人/计时结束显示胜者，R 重开
-- 删除/改名任一 model.glb 后游戏仍可运行（方块替代）
-- Console 无报错；60fps on desktop
+## Codex rules（执行约束）
+
+1. Work **only** in this GitHub repo; open PR → merge `main` (Vercel deploys).  
+2. **Do not compress / re-export GLBs.**  
+3. Keep `/_vercel/insights` + existing `va` events; add events for result / share / spectate / touch if useful.  
+4. Hand leftover bugs back in this same format (issue + repro + acceptance).  
+5. **3D skins / new maps = Tripo bot**, not Codex.  
+6. Implement **Wave 1 first**, then Wave 2. Wave 3 is Tripo-led.
+
+## Known issues（v0 已知问题 → map to waves）
+
+| # | Issue | Wave |
+|---|-------|------|
+| 1 | 手写 AABB：边缘只看中心点 → 悬空站立 / 提前掉落。Repro: walk to tile edge next to a gap. | W1 #1 |
+| 2 | Tile GLB 顶面用包围盒对齐，模型不平时豆人陷入/浮空 | W1 #1 |
+| 3 | Rival 染色覆盖 material.color，带贴图时偏暗/怪 | polish / later |
+| 4 | AI 笨：随机安全格、不会躲尖刺箱 | W1 #3 |
+| 5 | 推（E）仅缩放反馈，无粒子/音效；出局无观战切换 | W1 #2 · W2 #8/#10 |
+| 6 | 64 tile clone × 材质 → draw calls 高 | W2 #6 |
+| 7 | 首次 ~12 MB GLB 无进度条；无移动端触控 | W2 #7 (+ loading polish) |
+| 8 | 计时结束得分简单（存活+10，推人+1） | W1 #5 |
+| 9 | 未做 sudden-death 最后 2×2 | W1 #4 |
+
+## Acceptance checks（v0 shipped baseline）
+
+- Prod: https://blockbean-collapse.vercel.app returns 200  
+- 点击开始 → 倒计时 3-2-1 → WASD 移动、Space 跳、推开近距离 bot  
+- 60s 内平台逐步变红坠落；掉出 y<-15 判出局；最后一人/计时结束显示胜者，R 重开  
+- 删除/改名任一 model.glb 后游戏仍可运行（方块替代）  
+- Console 无报错；~60fps on desktop  
+
+**Wave acceptance:** see each item under [TRIAGE_WAVES.md](./TRIAGE_WAVES.md).

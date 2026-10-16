@@ -1,8 +1,11 @@
-# BlockBean Collapse — Triage Waves / 下一波优先项
+# 方块豆人 — 下一波分诊 / TRIAGE_WAVES
 
-方块豆人：塌了就出局 — next implementation waves (user approved items 1–10).
+**Locked:** 用户勾选 **#1–#10 全做**.  
+**Play:** https://blockbean-collapse.vercel.app  
+**Repo:** https://github.com/liush2yuxjtu/blockbean-collapse  
+**PRD:** [PRD.md](./PRD.md) §9–§13 · **Handoff:** [CODEX_HANDOFF.md](./CODEX_HANDOFF.md)
 
-**Do not treat this as done until a coding agent implements it.** This file is the backlog.
+**Do not treat this as done until a coding agent implements it.** This file is the backlog + acceptance checklist.
 
 ---
 
@@ -10,58 +13,116 @@
 
 | Role | Who | Notes |
 |------|-----|-------|
-| Coding (physics, juice, AI, UI, perf) | Cloud agent / Codex | Implement Wave 1–2 from this file + `PRD.md` / `CODEX_HANDOFF.md` |
+| Coding (physics, juice, AI, UI, perf, touch, audio, spectate) | Codex / cloud agent | Wave 1–2 from this file + PRD §12 |
 | 3D skins / map variants | Tripo bot | Estimate credits before generate; Wave 3 |
-| Iterative bugfix | User Codex | Local playtest → fix loop |
+| Iterative bugfix | User Codex | Local playtest → fix loop（CODEX_HANDOFF 格式） |
 
 ---
 
-## Wave 1 — Play feel + viral（先做）
+## Wave 1 — 手感 + 病毒镜头（先做）
 
-1. **Physics: edge standing / drop fix, coyote + jump buffer**  
-   物理：边缘站立/掉落修正；土狼时间 + 跳跃缓冲。
+### 1. 物理：边缘 AABB、coyote、跳跃缓冲
+Physics: edge standing/drop fix, coyote time, jump buffer.
 
-2. **Juice: push particles, camera punch, clearer collapse warn, out feedback**  
-   手感：推人粒子、镜头冲击、更清晰塌陷预警、出局反馈。
+**Acceptance**
+- [ ] Standing with feet overlapping a solid tile (not only center-point) keeps the bean grounded
+- [ ] Walking off a gap drops when support under feet is gone (no “悬空站立”)
+- [ ] Coyote: leave ground → Space within ~100–150ms still jumps
+- [ ] Jump buffer: press Space slightly before landing → jump on land
+- [ ] No new console errors; desktop still ~60fps in empty lobby
 
-3. **Smarter AI: avoid warned tiles, avoid spikebox, push at edges**  
-   更聪明 AI：避开预警地块、避开尖刺箱、在边缘推人。
+### 2. Juice：推人 VFX、镜头冲击、预警 glow、出局反馈
+Juice: push particles, camera punch, clearer collapse warn, out feedback.
 
-4. **Sudden-death final 2×2 (from PRD)**  
-   决胜：最后 2×2 突然死亡（见 PRD）。
+**Acceptance**
+- [ ] Successful push shows short particle / burst at contact
+- [ ] Push and nearby collapse trigger brief camera / FOV punch
+- [ ] Warned tiles are readable at a glance (stronger glow and/or shake vs solid)
+- [ ] On out: clear CN feedback（「出局了！」）+ short visual (flash / fall cam)
+- [ ] Feel still clip-friendly in first 3s of a round
 
-5. **Result screen: win/lose, push score, shareable copy + short link**  
-   结算屏：胜/负、推人得分、可分享文案 + 短链。
+### 3. 更聪明 AI：躲预警格、躲尖刺箱、边缘推人
+Smarter AI: avoid warned tiles, avoid spikebox, push at edges.
+
+**Acceptance**
+- [ ] Bots prefer non-warned tiles when pathing
+- [ ] Bots steer away from spikebox knock radius when possible
+- [ ] Adjacent bot near an edge attempts push toward void more often than center
+- [ ] Lobbies of 4–8 still fill; bots don’t all suicide same tile every round
+
+### 4. Sudden-death 最后 2×2
+Sudden-death final 2×2 (from PRD).
+
+**Acceptance**
+- [ ] When only inner 2×2 (or ≤4 tiles) remain, shake / warn cadence clearly intensifies
+- [ ] Round still ends with last bean win or timer tiebreak
+- [ ] Visible in ≥1 replay without cheating spawn (natural shrink)
+
+### 5. 结果页：胜负、推人分、可复制文案 + 短链
+Result/share screen: win/lose, push score, shareable copy + short link.
+
+**Acceptance**
+- [ ] End screen shows 赢了 / 出局了 + push score
+- [ ] One-tap copy share text (CN) including play URL
+- [ ] Replay / R still works
+- [ ] Optional: `va` event on result view / share copy
 
 ---
 
-## Wave 2 — Reach + polish
+## Wave 2 — 触达 + 打磨
 
-6. **InstancedMesh for 64 tiles (perf)**  
-   性能：64 地块用 InstancedMesh。
+### 6. InstancedMesh（64 tile 性能）
+InstancedMesh for 64 tiles (perf).
 
-7. **Mobile touch controls**  
-   移动端触控。
+**Acceptance**
+- [ ] Arena tiles rendered via InstancedMesh (or equivalent low draw-call path)
+- [ ] Warn / fall still visually correct per tile
+- [ ] Measurable draw-call drop vs 64 clones; mid/low laptop playable
 
-8. **SFX / BGM for collapse & push**  
-   塌陷与推人音效 / BGM。
+### 7. 移动端触控
+Mobile touch controls.
 
-10. **Spectate switch after elimination (+ optional simple replay later)**  
-    出局后观战切换（可选：后续简单回放）。
+**Acceptance**
+- [ ] Virtual stick moves; on-screen Jump + Push work
+- [ ] Full round completable on phone browser (portrait OK)
+- [ ] Does not break desktop WASD / Space / push
+
+### 8. 音效 / BGM（塌、推）
+SFX / BGM for collapse & push.
+
+**Acceptance**
+- [ ] Distinct SFX on tile warn/fall and on successful push
+- [ ] Win / out sting optional but preferred
+- [ ] Mute or low default volume so autoplay policies don’t break start
+- [ ] Keep Insights script; optional `va` on audio unlock
+
+### 10. 出局后观战切换
+Spectate switch after elimination (+ optional simple replay later).
+
+**Acceptance**
+- [ ] After local out, camera can follow another living bean (tap / key cycle)
+- [ ] Round continues until real winner; UI shows spectating state
+- [ ] Full replay editor still out of scope
 
 ---
 
-## Wave 3 — Content
+## Wave 3 — 内容
 
-9. **More skins / map variants (Tripo credits; estimate before generate)**  
-    更多皮肤 / 地图变体（Tripo 额度；生成前先估分）。
+### 9. 更多皮肤 / 地图变体（Tripo）
+More skins / map variants (Tripo credits; estimate before generate).
+
+**Acceptance**
+- [ ] Credit estimate written before generate; if **>200**, user confirmed
+- [ ] New GLBs land in repo `assets/` without compressing existing v0 GLBs
+- [ ] At least one alternate skin or map tile set selectable or swappable in demo
+- [ ] Codex does **not** author 3D — Tripo bot only
 
 ---
 
 ## Reference docs
 
-- [PRD.md](./PRD.md)
-- [CODEX_HANDOFF.md](./CODEX_HANDOFF.md)
+- [PRD.md](./PRD.md) — §8 Shipped · §9 Waves · §12 Codex notes · §13 Success  
+- [CODEX_HANDOFF.md](./CODEX_HANDOFF.md) — known v0 bugs + file map  
 - [ASSET_BRIEF.md](./ASSET_BRIEF.md)
 
 Play live: https://blockbean-collapse.vercel.app
