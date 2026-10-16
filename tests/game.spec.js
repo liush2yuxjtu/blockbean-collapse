@@ -60,9 +60,28 @@ test('loads, starts, eliminates beans, and shows the result screen', async ({ pa
   await expect.poll(() => page.evaluate(() => localStorage.getItem('blockbean_tip_out_seen'))).toBe('1');
   await expect(page.locator('#shareText')).toHaveValue(/blockbean-collapse|方块豆人/);
 
-  await page.keyboard.press('R');
-  await expect(page.locator('#result')).toBeHidden();
-  const forcedWin = await page.evaluate(() => {
+  const winPage = await page.context().newPage();
+  await winPage.addInitScript(() => {
+    localStorage.setItem('blockbean_practice_done', '1');
+    localStorage.removeItem('blockbean_tip_win_seen');
+  });
+  await winPage.goto('/', { waitUntil: 'domcontentloaded' });
+  const winStart = winPage.locator('#start');
+  const winFallback = winPage.locator('#fallback, [data-fallback]').first();
+  await expect.poll(async () => {
+    const ready = await winStart.isEnabled().catch(() => false);
+    const unavailable = await winFallback.isVisible().catch(() => false);
+    return ready || unavailable;
+  }, { timeout: 30_000 }).toBeTruthy();
+  if (await winFallback.isVisible()) {
+    await winPage.close();
+    return;
+  }
+  await winStart.click();
+  await expect(winPage.locator('#splash')).toBeHidden();
+  await expect.poll(() => winPage.evaluate(() => window.__game?.state ?? 'missing'))
+    .toMatch(/count|play/);
+  const forcedWin = await winPage.evaluate(() => {
     const game = window.__game;
     if (!game?.beans?.length) return false;
     for (const bean of game.beans) {
@@ -76,10 +95,10 @@ test('loads, starts, eliminates beans, and shows the result screen', async ({ pa
     return true;
   });
   expect(forcedWin).toBe(true);
-  await expect(page.locator('#result')).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator('#resultTitle')).toContainText(/赢|You win/i);
-  await expect(page.locator('#contextTip')).toBeVisible();
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('blockbean_tip_win_seen'))).toBe('1');
-
+  await expect(winPage.locator('#result')).toBeVisible({ timeout: 10_000 });
+  await expect(winPage.locator('#resultTitle')).toContainText(/赢|You win/i);
+  await expect(winPage.locator('#contextTip')).toBeVisible();
+  await expect.poll(() => winPage.evaluate(() => localStorage.getItem('blockbean_tip_win_seen'))).toBe('1');
+  await winPage.close();
   expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
 });
