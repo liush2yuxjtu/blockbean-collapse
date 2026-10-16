@@ -61,11 +61,15 @@ test('loads, starts, eliminates beans, and shows the result screen', async ({ pa
 
   await page.keyboard.press('R');
   await expect(page.locator('#result')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'))
+    .toBe('play');
   const forcedWin = await page.evaluate(() => {
     const game = window.__game;
     if (!game?.beans?.length) return false;
     for (const bean of game.beans) {
-      if (bean.name !== '你') {
+      const isPlayer = bean.name === '你';
+      bean.alive = isPlayer;
+      if (!isPlayer) {
         bean.p.y = -20;
         bean.v.y = -1;
       }
