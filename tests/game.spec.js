@@ -4,6 +4,7 @@ test('loads, starts, eliminates beans, and shows the result screen', async ({ pa
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
 
+  await page.addInitScript(() => localStorage.setItem('blockbean_practice_done', '1'));
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('body')).toBeVisible();
 
