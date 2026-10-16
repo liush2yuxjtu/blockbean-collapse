@@ -43,7 +43,7 @@ npx serve .
 ## Assets / 资产
 
 Wave 1: `assets/hero` · `rival` · `tile` · `spikebox`  
-Wave 3 (this PR): `assets/tile_grass` · `tile_ice` · `tile_neon` · `skin_mint` — Tripo theme tiles (PRD P2–P4) + mint unlock skin (N2). **Not loaded by `game.js` yet.**
+Wave 3: `assets/tile_grass` · `tile_ice` · `tile_neon` · `skin_mint` — Tripo theme tiles (PRD P2–P4) + mint unlock skin (N2). The title settings expose Grass / Ice / Night neon themes and unlock Mint after three local wins; missing assets fall back to box geometry.
 
 ## License / 版权说明
 

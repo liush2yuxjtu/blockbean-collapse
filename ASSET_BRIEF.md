@@ -184,3 +184,7 @@ Current rough total for 4 assets: **~90–150 points**.
 | 8 | `assets/skin_mint/model.glb` | N2 mint unlock skin T-pose (mint torso + cream limbs) | `52f65497-993c-49d1-a277-65326d2c8a36` | 20 |
 
 Each folder also has `preview.png`. Gallery master copies + raws live under `/workspace/gallery/tripo/blockbean-collapse/assets/`.
+
+## Wave 3 credit gate
+
+The four Wave 3 assets used 80 Tripo credits in total (20 each), below the 200-credit confirmation threshold. No additional Tripo generation is part of this code pass. Existing GLBs remain uncompressed and are wired through selectable theme and starter-skin fallbacks.

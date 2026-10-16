@@ -7,9 +7,9 @@
 <link rel="preload" href="concept/blockbean_keyart.jpg" as="image">
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js">
 <style>
-:root{--safe:env(safe-area-inset-bottom,0px)}
+:root{--safe:env(safe-area-inset-bottom,0px);--hud-scale:1;--hud-contrast:.82}
 *{box-sizing:border-box}html,body{margin:0;overflow:hidden;background:#87ceeb;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;touch-action:none}
-#hud{position:fixed;top:10px;left:10px;color:#fff;text-shadow:0 2px 3px #000;font-size:18px;line-height:1.45;z-index:4;pointer-events:none}
+#hud{position:fixed;top:10px;left:10px;color:#fff;text-shadow:0 2px 3px #000;font-size:calc(18px * var(--hud-scale));line-height:1.45;z-index:4;pointer-events:none;filter:contrast(calc(1 + var(--hud-contrast)))}
 #msg{position:fixed;top:37%;width:100%;text-align:center;font-size:clamp(42px,8vw,76px);font-weight:800;color:#fff;text-shadow:0 3px 6px #000;z-index:4;pointer-events:none}
 #splash{position:fixed;inset:0;background:#000c url(concept/blockbean_keyart.jpg) center/cover;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:8;text-shadow:0 2px 6px #000;padding:24px;text-align:center}
 #splash h1{font-size:clamp(34px,7vw,58px);margin:0}#splash p{max-width:720px}
@@ -24,13 +24,35 @@
 .result-card h2{font-size:38px;margin:0 0 8px}.result-card p{margin:8px 0 18px}.context-tip{color:#334155;font-weight:700}
 #shareText{width:100%;min-height:76px;border:1px solid #cbd5e1;border-radius:10px;padding:10px;font:inherit;resize:none}
 .result-actions{display:flex;gap:10px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+#result canvas{display:none}
+#result .secondary{font-size:13px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:9px;background:#f8fafc;color:#1e293b;cursor:pointer}
+#result .tip-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+#bestBoard,#returnBanner,#clipStatus{font-size:13px;color:#475569}
+#returnBanner{background:#ecfeff;border:1px solid #67e8f9;border-radius:10px;padding:8px;margin:10px 0}
+#settings{width:min(760px,94vw);display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-top:12px;text-align:left}
+#settings label{font-size:12px;display:grid;gap:4px;color:#fff}
+#settings select,#settings input{font:inherit;padding:6px;border-radius:8px;border:1px solid #fff6;background:#111b;color:#fff}
+#scopeLine{font-size:12px;opacity:.8;margin:7px 0}
+#ghostDemo{position:absolute;left:50%;bottom:11%;width:72px;height:88px;transform:translateX(-50%);pointer-events:none;opacity:0;z-index:2}
+#ghostDemo.show{opacity:.55;animation:ghost-walk 2s ease-in-out infinite alternate}
+#ghostDemo:before{content:'';position:absolute;inset:0 8px 18px;border-radius:45% 45% 35% 35%;background:linear-gradient(#dbeafe,#93c5fd);border:3px dashed #fff;box-shadow:0 0 18px #fff8}
+#ghostDemo:after{content:'演示';position:absolute;top:-24px;left:0;right:0;text-align:center;font-size:12px;color:#fff;text-shadow:0 2px 4px #000}
+@keyframes ghost-walk{from{transform:translateX(-50%) translateX(-22px)}to{transform:translateX(-50%) translateX(22px) translateY(-8px)}}
+#captions{position:fixed;left:50%;bottom:18%;transform:translateX(-50%);padding:7px 12px;border-radius:999px;background:#111c;color:#fff;font-weight:800;z-index:6;pointer-events:none;opacity:0;transition:opacity .12s}
+#captions.show{opacity:1}
+#buildBanner{position:fixed;right:12px;bottom:10px;color:#fff8;font-size:11px;z-index:4;pointer-events:none}
+#maintenance{position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:10;max-width:90vw;padding:8px 12px;border-radius:10px;background:#fff7ed;color:#7c2d12;border:1px solid #fdba74;display:none}
+#maintenance.show{display:block}
+#pauseOverlay{display:flex;gap:12px;flex-direction:column}
+#quitHold{font-size:15px;padding:9px 14px;border-radius:10px;border:1px solid #fff8;background:#111a;color:#fff}
 #touch{position:fixed;inset:0;z-index:5;pointer-events:none}
 #stickZone{position:absolute;left:18px;bottom:calc(18px + var(--safe));width:132px;height:132px;border-radius:50%;background:#0003;border:2px solid #fff7;pointer-events:auto}
 #stickKnob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px;border-radius:50%;background:#fff9;border:2px solid #fff;transition:transform .04s linear}
 .touch-btn{position:absolute;bottom:calc(28px + var(--safe));width:72px;height:72px;border-radius:50%;border:2px solid #fff8;background:#111a;color:#fff;font-size:16px;font-weight:700;pointer-events:auto}
 #jumpBtn{right:116px}#pushBtn{right:28px;bottom:calc(92px + var(--safe))}
 #spectateBtn,#muteBtn{position:absolute;right:16px;top:16px;border:1px solid #fff8;border-radius:10px;background:#111a;color:#fff;padding:8px 12px;pointer-events:auto}
-#muteBtn{top:58px}#spectateLabel{position:absolute;right:16px;top:98px;color:#fff;text-shadow:0 2px 3px #000;font-size:14px}
+#muteBtn{top:58px}#spectateLabel{position:absolute;right:16px;top:145px;color:#fff;text-shadow:0 2px 3px #000;font-size:14px}
+#freeLookBtn{position:absolute;right:16px;top:100px;border:1px solid #fff8;border-radius:10px;background:#111a;color:#fff;padding:8px 12px;pointer-events:auto}
 #fallback{position:fixed;inset:0;display:grid;place-items:center;background:#07111dcc;color:#fff;z-index:20;padding:24px;text-align:center}
 #fallback[hidden],#hookClip[hidden],#pauseOverlay[hidden]{display:none}
 .fallback-card{max-width:560px;background:#111827ee;border:1px solid #ffffff44;border-radius:18px;padding:24px}
@@ -44,6 +66,8 @@
 @keyframes hook-collapse{0%,55%{transform:translateY(0)}74%{transform:translateY(0) rotate(0)}100%{transform:translateY(85px) rotate(15deg);opacity:.2}}
 @keyframes hook-pulse{from{opacity:.35}to{opacity:.8}}
 .hook-done{opacity:.55}
+#hookClip.hook-frozen .hook-bean,#hookClip.hook-frozen .hook-tile{animation-play-state:paused}
+#hookClip.hook-frozen:after{content:'定格帧 · 可用于录屏';position:absolute;left:10px;bottom:10px;color:#fff;background:#111b;border-radius:8px;padding:5px 8px;font-size:12px}
 #pauseOverlay{position:fixed;inset:0;display:grid;place-items:center;background:#07111d99;color:#fff;font-size:30px;font-weight:800;z-index:6;text-shadow:0 2px 4px #000}
 #sudden{position:fixed;inset:0;pointer-events:none;border:0 solid #f22;z-index:3;opacity:0}
 #sudden.sudden-on{border-width:10px;opacity:.45;animation:heartbeat 1.16s ease-in-out infinite}
@@ -62,12 +86,25 @@
 <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
-<div id="hud"></div><div id="msg"></div><div id="sudden"></div><div id="impactFlash"></div><div id="pauseOverlay" hidden>已暂停 · 按 Esc 继续</div>
+<div id="hud"></div><div id="msg"></div><div id="sudden"></div><div id="impactFlash"></div><div id="captions" aria-live="polite"></div><div id="buildBanner">BlockBean v1.1.0 · build main</div><div id="maintenance"></div><div id="pauseOverlay" hidden><span id="pauseText">已暂停 · 按 Esc 继续</span><button id="quitHold">按住退出大厅</button></div>
 <div id="splash"><h1>方块豆人：塌了就出局</h1><p>BlockBean Collapse · 方块塌了就出局，推开对手，最后一豆称王</p>
 <div id="hookClip"><div class="hook-bean"></div><div class="hook-tile"></div><p>3 秒预告：推开对手，地板先塌</p><button id="hookSkip">跳过预告</button></div>
-<div id="loadbar-wrap"><div id="loadbar" role="progressbar" aria-label="资源加载进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div></div><p id="load">加载模型中… 0%</p><button id="start" disabled>开始 / Start</button><small id="controls">P1 WASD/空格/E · P2 方向键/Numpad1/Numpad0</small><button id="motionBtn">减少动效</button><button id="langBtn">EN</button></div>
-<div id="fallback" hidden><div class="fallback-card"><h2>需要开启图形加速</h2><p id="fallbackText">当前浏览器没有可用的 WebGL。请开启硬件加速或换一个支持 WebGL 的浏览器。</p></div></div>
-<div id="result" hidden><div class="result-card"><h2 id="resultTitle"></h2><p id="resultDetail"></p><p id="contextTip" class="context-tip" aria-live="polite" hidden></p><p id="roast"></p><textarea id="shareText" readonly></textarea><div class="result-actions"><button id="copyBtn">复制分享文案</button><button id="replayBtn">再来一局（R）</button></div></div></div>
-<div id="touch"><div id="stickZone" aria-label="移动摇杆"><div id="stickKnob"></div></div><button class="touch-btn" id="jumpBtn">跳</button><button class="touch-btn" id="pushBtn">推</button><button id="spectateBtn">切换观战</button><button id="muteBtn">🔊 音效</button><div id="spectateLabel"></div></div>
+<div id="loadbar-wrap"><div id="loadbar" role="progressbar" aria-label="资源加载进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div></div><p id="load">加载模型中… 0%</p><button id="start" disabled>开始 / Start</button><small id="controls">P1 WASD/空格/E · P2 方向键/Numpad1/Numpad0</small><div id="settings">
+<label>模式<select id="modeSelect"><option value="classic">经典淘汰</option><option value="no-push">No-push 生存</option><option value="hazard-rain">Hazard rain</option><option value="ghost-trail">Ghost trail</option></select></label>
+<label>地图<select id="mapSelect"><option value="random">随机地图</option><option value="classic">Classic</option><option value="pit">Center pit</option><option value="ring">Ring</option></select></label>
+<label>主题<select id="themeSelect"><option value="grass">Grass</option><option value="ice">Ice</option><option value="neon">Night neon</option></select></label>
+<label>推力<select id="pushSelect"><option value="easy">Easy</option><option value="default" selected>Default</option><option value="spicy">Spicy</option></select></label>
+<label>节奏<select id="paceSelect"><option value="slow-rush">Slow → rush</option><option value="steady">Steady</option></select></label>
+<label>AI<select id="aiSelect"><option value="calm">Calm</option><option value="default" selected>Default</option><option value="aggressive">Aggressive</option></select></label>
+<label>Bot 数<select id="botSelect"><option value="4">4</option><option value="6" selected>6</option><option value="8">8</option></select></label>
+<label>局长<select id="roundSelect"><option value="30" selected>30s</option><option value="45">45s</option><option value="60">60s</option></select></label>
+<label>皮肤<select id="skinSelect"><option value="starter">Starter</option><option value="mint" disabled>Mint（3 连胜解锁）</option></select></label>
+<label>HUD<select id="hudSelect"><option value="normal" selected>Normal</option><option value="large">Large</option><option value="high-contrast">High contrast</option></select></label>
+<label>P1 推人键<input id="pushKey" value="E" maxlength="1" aria-label="P1 推人键"></label>
+<label>音量<input id="volumeSelect" type="range" min="0" max="1" step="0.05" value="0.65"></label>
+</div><p id="scopeLine">免费 Starter + 连胜解锁皮肤。v1 不含广告，不含 IAP。</p><p id="returnBanner" hidden></p><div id="ghostDemo" aria-hidden="true"></div><button id="motionBtn">减少动效</button><button id="langBtn">EN</button></div>
+<div id="fallback" hidden><div class="fallback-card"><h2>需要开启图形加速</h2><p id="fallbackText">当前浏览器没有可用的 WebGL。请开启硬件加速或换一个支持 WebGL 的浏览器。</p><a href="https://github.com/liush2yuxjtu/blockbean-collapse/blob/main/CODEX_HANDOFF.md" target="_blank" rel="noreferrer">查看故障排查文档</a></div></div>
+<div id="result" hidden><div class="result-card"><h2 id="resultTitle"></h2><p id="resultDetail"></p><p id="contextTip" class="context-tip" aria-live="polite" hidden></p><div id="tipActions" class="tip-actions" hidden><button id="tipSkip" class="secondary">跳过提示</button><button id="tipNever" class="secondary">不再显示</button></div><p id="roast"></p><p id="bestBoard"></p><p id="clipStatus"></p><canvas id="shareCard" width="1200" height="630"></canvas><input id="clipHandle" class="secondary" placeholder="分享水印（可选）" maxlength="32"><textarea id="shareText" readonly></textarea><div class="result-actions"><button id="copyBtn">复制分享文案</button><button id="cardBtn" class="secondary">下载分享卡 PNG</button><button id="replayBtn">再来一局（R）</button></div></div></div>
+<div id="touch"><div id="stickZone" aria-label="移动摇杆"><div id="stickKnob"></div></div><button class="touch-btn" id="jumpBtn">跳</button><button class="touch-btn" id="pushBtn">推</button><button id="spectateBtn">切换观战</button><button id="freeLookBtn">自由视角</button><button id="muteBtn">🔊 音效</button><div id="spectateLabel"></div></div>
 <script type="module" src="game.js?v=prd-1"></script>
 </body></html>
