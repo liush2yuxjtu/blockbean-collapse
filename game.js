@@ -183,6 +183,8 @@ let heartbeatT = 0;
 let bestStreak = Number(localStorage.getItem('blockbean_best_streak') || 0);
 let currentStreak = 0;
 let bestPush = Number(localStorage.getItem('blockbean_best_push') || 0);
+// O2: soften the first round so new players can learn movement, jumping, and pushing.
+let practiceRound = localStorage.getItem('blockbean_practice_done') !== '1';
 
 function unlockAudio() {
   if (!audio) {
@@ -251,6 +253,7 @@ function reset() {
   points = {};
   pushCount = 0;
   roundDuration = 0;
+  practiceRound = localStorage.getItem('blockbean_practice_done') !== '1';
   slowMo = 0;
   cameraPullback = 0;
   particles.splice(0).forEach(p => scene.remove(p.m));
@@ -266,7 +269,7 @@ function reset() {
   });
   collapseOrder.forEach((t, index) => {
     const ring = Math.max(Math.abs(t.i - 3.5), Math.abs(t.j - 3.5));
-    t.crackAt = collapseDelay(index, ring);
+    t.crackAt = practiceRound ? Infinity : collapseDelay(index, ring);
   });
   const count = 6 + Math.floor(Math.random() * 3);
   const colors = [0xff5555, 0x55aaff, 0xffdd33, 0xaa66ff, 0xff9933, 0x33ddaa, 0xff66cc, 0xc084fc];
@@ -283,6 +286,7 @@ function reset() {
     points[b.name] = 0;
   }
   const sm = makeSpike();
+  sm.visible = !practiceRound;
   spike = { m: sm, a: 0 };
   sm.position.set(0, TILE_TOP + 0.05, 0);
   scene.add(sm);
@@ -294,9 +298,9 @@ function reset() {
   followIndex = 0;
   if ($('result')) $('result').hidden = true;
   if ($('pauseOverlay')) $('pauseOverlay').hidden = true;
-  flash('3', 1);
+  flash(practiceRound ? '练习局：先熟悉移动、跳跃和推人' : '3', practiceRound ? 2.2 : 1);
   unlockAudio();
-  __va('round_reset', { players: beans.length, local_2p: true });
+  __va('round_reset', { players: beans.length, local_2p: true, practice: practiceRound });
 }
 function tileAt(x, z) {
   const i = Math.floor(x / T + GRID / 2);
@@ -415,7 +419,7 @@ function control(b, dt) {
     tone(340, 0.06, 'triangle', 0.025);
   }
   b.cd -= dt;
-  if (input.push && b.cd <= 0) {
+  if (input.push && b.cd <= 0 && (!practiceRound || !b.ai)) {
     b.cd = 0.8;
     pushBean(b);
     b.m.scale.setScalar(1.2);
@@ -457,21 +461,27 @@ function physics(b, dt) {
   b.m.position.copy(b.p);
 }
 function endRound() {
+  const practiceComplete = practiceRound;
   const alive = beans.filter(b => b.alive);
   alive.forEach(b => points[b.name] += 10);
   const winner = alive.length === 1 ? alive[0].name : alive.sort((a, c) => points[c.name] - points[a.name])[0]?.name || '无人';
   const meScore = points['你'] || 0;
-  const won = winner === '你';
+  const won = !practiceComplete && winner === '你';
   roundDuration = Math.max(0, Math.round((performance.now() - roundStart) / 1000));
-  currentStreak = won ? currentStreak + 1 : 0;
-  bestStreak = Math.max(bestStreak, currentStreak);
-  bestPush = Math.max(bestPush, meScore);
-  localStorage.setItem('blockbean_best_streak', String(bestStreak));
-  localStorage.setItem('blockbean_best_push', String(bestPush));
+  if (practiceComplete) {
+    localStorage.setItem('blockbean_practice_done', '1');
+    practiceRound = false;
+  } else {
+    currentStreak = won ? currentStreak + 1 : 0;
+    bestStreak = Math.max(bestStreak, currentStreak);
+    bestPush = Math.max(bestPush, meScore);
+    localStorage.setItem('blockbean_best_streak', String(bestStreak));
+    localStorage.setItem('blockbean_best_push', String(bestPush));
+  }
   state = 'over';
   slowMo = 0.45;
   cameraPullback = 2;
-  playSfx(won ? 'win' : 'out');
+  playSfx(practiceComplete ? 'win' : (won ? 'win' : 'out'));
   punch(0.35);
   if (won) {
     burst(beans.find(b => b.name === winner)?.p || new THREE.Vector3(), 0xffe066, 80);
@@ -479,19 +489,21 @@ function endRound() {
     if (winnerBean) winnerBean.v.y = 7;
   }
   const roast = randomRoast();
-  flash(won ? '🏆 你赢了！' : '你出局了！', 999);
+  flash(practiceComplete ? '练习完成！点击再来一局进入正式局' : (won ? '🏆 你赢了！' : '你出局了！'), 999);
   if ($('result')) {
-    $('resultTitle').textContent = won ? (language === 'zh' ? '🏆 你赢了！' : '🏆 You win!') : (language === 'zh' ? '你出局了！' : 'You are out');
-    $('resultDetail').textContent = (language === 'zh' ? '获胜者：' : 'Winner: ') + winner +
-      (language === 'zh' ? ' · 推人分：' : ' · Pushes: ') + meScore +
-      (language === 'zh' ? ' · 存活：' : ' · Alive: ') + alive.length + '/' + beans.length +
-      (language === 'zh' ? ' · 最佳连胜：' : ' · Best streak: ') + bestStreak;
+    $('resultTitle').textContent = practiceComplete ? '练习完成！' : (won ? (language === 'zh' ? '🏆 你赢了！' : '🏆 You win!') : (language === 'zh' ? '你出局了！' : 'You are out'));
+    $('resultDetail').textContent = practiceComplete
+      ? '已完成安全练习：下一局将开启真实塌陷和 Bot 推挤。'
+      : (language === 'zh' ? '获胜者：' : 'Winner: ') + winner +
+        (language === 'zh' ? ' · 推人分：' : ' · Pushes: ') + meScore +
+        (language === 'zh' ? ' · 存活：' : ' · Alive: ') + alive.length + '/' + beans.length +
+        (language === 'zh' ? ' · 最佳连胜：' : ' · Best streak: ') + bestStreak;
     $('shareText').value = formatShareText({ score: meScore, won, best: bestStreak, roast, url: PLAY_URL });
     $('roast').textContent = roast;
     $('result').hidden = false;
   }
   __va('round_end', {
-    result: won ? 'win' : 'lose', winner, push_score: meScore, alive: alive.length,
+    result: practiceComplete ? 'practice' : (won ? 'win' : 'lose'), winner, push_score: meScore, alive: alive.length,
     duration_s: roundDuration, push_count: pushCount, best_streak: bestStreak
   });
 }
@@ -639,14 +651,14 @@ function loop() {
     if (state === 'play') timer -= dt;
     const elapsed = 30 - timer;
     const aliveTiles = tiles.filter(t => t.st === 'ok' || t.st === 'crack');
-    const sudden = aliveTiles.length <= 4;
+    const sudden = !practiceRound && aliveTiles.length <= 4;
     if ($('sudden')) $('sudden').classList.toggle('sudden-on', sudden);
     heartbeatT -= dt;
     if (sudden && heartbeatT <= 0) { heartbeatT = 0.58; playSfx('heartbeat'); }
     let warningStarted = false;
-    const scheduled = sudden
+    const scheduled = practiceRound ? [] : (sudden
       ? tiles.filter(t => t.st === 'ok').sort((a, b) => Math.max(Math.abs(a.x), Math.abs(a.z)) - Math.max(Math.abs(b.x), Math.abs(b.z)))
-      : tiles.filter(t => t.st === 'ok' && elapsed >= t.crackAt);
+      : tiles.filter(t => t.st === 'ok' && elapsed >= t.crackAt));
     for (const [i, t] of tiles.entries()) {
       if (t.st === 'ok' && !warningStarted && scheduled[0] === t) {
         t.st = 'crack';
@@ -685,7 +697,7 @@ function loop() {
       const d = b.p.clone().sub(spike.m.position);
       d.y = 0;
       b.hazardCd = Math.max(0, b.hazardCd - dt);
-      if (d.length() < 1.3 && b.p.y < TILE_TOP + 1.6 && b.hazardCd <= 0) {
+      if (!practiceRound && d.length() < 1.3 && b.p.y < TILE_TOP + 1.6 && b.hazardCd <= 0) {
         b.v.addScaledVector(d.normalize(), 14);
         b.v.y = Math.max(b.v.y, 6);
         b.hazardCd = 0.8;
@@ -718,10 +730,11 @@ function loop() {
   cam.updateProjectionMatrix();
   if ($('hud')) {
     const spectateText = spectating && target ? ' · 观战：' + target.name : '';
+    const practiceText = practiceRound ? ' · 练习局（无塌陷/Bot推挤）' : '';
     const scores = language === 'zh' ? '推人分 ' : 'Pushes ';
     $('hud').innerHTML = state === 'menu' ? '' :
       '⏱ ' + Math.max(0, timer).toFixed(0) + 's · 存活 ' + live.length + '/' + beans.length +
-      ' · ' + scores + (points['你'] || 0) + ' · 最佳连胜 ' + bestStreak + spectateText +
+      ' · ' + scores + (points['你'] || 0) + ' · 最佳连胜 ' + bestStreak + practiceText + spectateText +
       '<br><small id="controls">' + tr('controls') + '</small>';
   }
   if (renderer) renderer.render(scene, cam);
