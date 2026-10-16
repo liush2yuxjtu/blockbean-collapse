@@ -1,9 +1,9 @@
 # 方块豆人 — 下一波分诊 / TRIAGE_WAVES
 
-**Locked:** 用户勾选 **#1–#10 全做**.  
+**Locked:** 用户勾选 **#1–#10 全做** · **Spread A,B,C,F,G** · **Engineering T1–T8** · **Juice J1–J8**.  
 **Play:** https://blockbean-collapse.vercel.app  
 **Repo:** https://github.com/liush2yuxjtu/blockbean-collapse  
-**PRD:** [PRD.md](./PRD.md) §9–§13 · **Handoff:** [CODEX_HANDOFF.md](./CODEX_HANDOFF.md)
+**PRD:** [PRD.md](./PRD.md) §9–§13（含 Spread / Engineering / Juice）· **Handoff:** [CODEX_HANDOFF.md](./CODEX_HANDOFF.md)
 
 **Do not treat this as done until a coding agent implements it.** This file is the backlog + acceptance checklist.
 
@@ -13,7 +13,7 @@
 
 | Role | Who | Notes |
 |------|-----|-------|
-| Coding (physics, juice, AI, UI, perf, touch, audio, spectate) | Codex / cloud agent | Wave 1–2 from this file + PRD §12 |
+| Coding (physics, juice, AI, UI, perf, touch, audio, spectate, Spread, Engineering) | Codex / cloud agent | Wave 1–2 primary; Spread / Engineering / Juice from this file + PRD §12 |
 | 3D skins / map variants | Tripo bot | Estimate credits before generate; Wave 3 |
 | Iterative bugfix | User Codex | Local playtest → fix loop（CODEX_HANDOFF 格式） |
 
@@ -119,9 +119,64 @@ More skins / map variants (Tripo credits; estimate before generate).
 
 ---
 
+
+---
+
+## Spread wave — 传播波（A,B,C,F,G · NOT D,E,H）
+
+| ID | Item | Status | Acceptance |
+|----|------|--------|------------|
+| **A** | Opening 3s hook — auto-play collapse/push clip before Start | ☐ | Clip autoplays (muted OK) before Start; skippable; first 3s show collapse or push |
+| **B** | Shorter harsher rounds — 25–35s, denser collapses | ☐ | Default round 25–35s; denser tile collapses; still crowns last bean; no long dead air |
+| **C** | Meme result copy — random roast + one-tap 小红书/剪映 | ☐ | End screen random CN roast lines; one-tap copy suitable for Xiaohongshu/Jianying; includes play URL |
+| **F** | Light leaderboard — local best streak / push score | ☐ | Persist local best win streak + push score (localStorage); optional anonymous board OK; no accounts |
+| **G** | Local 2P same screen — split keyboard, no netcode | ☐ | Two players same screen, split keys (e.g. WASD+push vs arrows+push); **no netcode** |
+
+**Explicitly NOT in this wave:** ☐ ~~D GIF replay~~ · ☐ ~~E daily seed~~ · ☐ ~~H gacha skins~~ （do not implement）
+
+**Scheduling:** Wave 1–2 still primary if unfinished; Spread may run **parallel** or after.
+
+---
+
+## Engineering wave — 工程波（T1–T8 全做）
+
+| ID | Item | Status | Acceptance |
+|----|------|--------|------------|
+| **T1** | Split `game.js` into modules (arena/beans/input/ui) | ☐ | Modules exist; v0 behavior parity; static serve still works (no mandatory bundler, or documented tiny build) |
+| **T2** | Playwright regression CI (load→start→fall→result) | ☐ | CI runs load → start → fall/out → result; fails block merge on PR/`main` |
+| **T3** | Enrich analytics events (duration, push_count, etc.) | ☐ | Events include duration + push_count (and similar); keep Insights/`va`; no PII |
+| **T4** | Error boundaries (WebGL fail / GLB 404 fallback UI) | ☐ | Readable fallback UI on WebGL fail or GLB 404; box substitutes still playable |
+| **T5** | Asset strategy without compressing GLBs | ☐ | No GLB compress/re-export; critical preload + lazy rival (or equivalent) |
+| **T6** | Pause + reduce motion | ☐ | Esc pauses; option disables shake / cam punch |
+| **T7** | i18n CN/EN HUD toggle | ☐ | HUD/result strings toggle CN↔EN; default CN |
+| **T8** | LICENSE + CONTRIBUTING for public repo | ☐ | Root `LICENSE` + `CONTRIBUTING.md` present and accurate |
+
+**Scheduling:** Parallel OK with Wave 1–2 / Spread (esp. T1/T2/T3/T8); do not block feel/spread play acceptance.
+
+---
+
+## Juice checklist — Juice 清单（J1–J8 全做；含 J4+J5）
+
+Aligns with / expands Wave 1 #2. Respect T6 reduce motion.
+
+| ID | Item | Status | Acceptance |
+|----|------|--------|------------|
+| **J1** | Push impact — FOV punch, light screen shake, rival flash | ☐ | On successful push: FOV punch + light shake + rival flash; shake off when reduce-motion |
+| **J2** | Collapse warn layer — edge glow pulse, crack flash, tick SFX | ☐ | Warned tiles: edge glow pulse + crack flash; tick SFX (muteable) |
+| **J3** | Collapse moment — fall trail, dust particles, low rumble | ☐ | On fall: trail + dust + low rumble (muteable) |
+| **J4** | Out sequence — brief slow-mo, cam pullback, 「出局了！」pop | ☐ | On out: short slow-mo + cam pullback + 「出局了！」pop |
+| **J5** | Jump land — squash + land dust | ☐ | On land: visible squash + land dust; snappy, not sluggish |
+| **J6** | Multi-push float text — 「再推！」「双推」 | ☐ | Multi-push shows float text (再推/双推); does not block controls |
+| **J7** | Final 2×2 heartbeat — red tint, faster beat, edge flash | ☐ | With sudden-death: red tint + faster heartbeat cadence + edge flash |
+| **J8** | Win celebration — confetti/bean hop + win sting | ☐ | On win: confetti or bean hop + win sting |
+
+**Scheduling:** Prefer with Wave 1 #2; may stack with Spread A/C visual hooks.
+
+---
+
 ## Reference docs
 
-- [PRD.md](./PRD.md) — §8 Shipped · §9 Waves · §12 Codex notes · §13 Success  
+- [PRD.md](./PRD.md) — §8 Shipped · §9 Waves (+ Spread / Engineering / Juice) · §12 Codex notes · §13 Success  
 - [CODEX_HANDOFF.md](./CODEX_HANDOFF.md) — known v0 bugs + file map  
 - [ASSET_BRIEF.md](./ASSET_BRIEF.md)
 

@@ -2,7 +2,7 @@
 
 **Status:** v0 demo **SHIPPED**: https://blockbean-collapse.vercel.app  
 **Repo:** https://github.com/liush2yuxjtu/blockbean-collapse  
-**Analytics:** on (Vercel Pro). **Next:** Codex implements Wave 1–3 from this PRD.  
+**Analytics:** on (Vercel Pro). **Next:** Codex implements Wave 1–3; Spread + Engineering + Juice also locked (docs-only until coded).  
 **Working title (CN):** 「方块豆人：塌了就出局」  
 **Working title (EN):** BlockBean Collapse  
 **Target:** Viral CN-community 3D game mashup (Douyin / Bilibili clip-first)  
@@ -112,7 +112,7 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 ## 9. 下一波分诊 / Next waves
 
-用户已批准 **#1–#10 全部做**。明细与验收见 [TRIAGE_WAVES.md](./TRIAGE_WAVES.md)。摘要：
+用户已批准 **#1–#10 全部做**，另已锁定 **传播波 A,B,C,F,G**、**工程波 T1–T8**、**Juice J1–J8**。明细与验收见 [TRIAGE_WAVES.md](./TRIAGE_WAVES.md)。摘要：
 
 ### Wave 1 — 手感 + 病毒镜头（先做）
 
@@ -133,29 +133,82 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 9. **更多皮肤 / 地图变体**（Tripo；生成前估积分；>200 须确认）  
 
+
+### Wave 4 — 传播波 / Spread wave（用户已选 A,B,C,F,G）
+
+用户勾选 **A / B / C / F / G**（**未选** D GIF 回放、E 每日 seed、H 扭蛋皮肤）。明细与验收见 [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) Spread 表。摘要：
+
+| ID | Item | Codex acceptance（摘要） |
+|----|------|--------------------------|
+| **A** | Opening 3s hook | 点 Start 前自动播放塌/推短 clip（可静音）；可跳过；3s 内必须出现 collapse 或 push |
+| **B** | Shorter harsher rounds | 默认局时 **25–35s**；塌格更密；仍能决出最后一豆；Feel 无长时间死气 |
+| **C** | Meme result copy | 结束页随机 roast 文案（CN）；一键复制适配小红书 / 剪映；含 play URL |
+| **F** | Light leaderboard | 本地最佳连胜 / 推人分（localStorage）；可选匿名榜 OK；**无账号** |
+| **G** | Local 2P same screen | 分键位同屏双人（如 WASD+推 vs 方向键+推）；**无 netcode** |
+
+**Explicitly NOT in this wave:** D GIF replay · E daily seed · H gacha skins.
+
+**Scheduling:** Wave 1–2 仍优先若未完成；Spread 可与 Wave 1–2 **并行**或紧随其后。
+
+### 工程波 / Engineering wave（用户已选 T1–T8 全做）
+
+用户勾选 **T1–T8 全部**。明细与验收见 [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) Engineering 表。摘要：
+
+| ID | Item | Codex acceptance（摘要） |
+|----|------|--------------------------|
+| **T1** | Split `game.js` modules | 拆成 arena / beans / input / ui（或等价）；行为与 v0 对齐；无 build 或保持静态可跑 |
+| **T2** | Playwright regression CI | CI：load → start → fall/out → result；PR/`main` 可跑；失败阻断合入 |
+| **T3** | Enrich analytics events | 时长、`push_count` 等；保留现有 Insights / `va`；无 PII |
+| **T4** | Error boundaries | WebGL 失败 / GLB 404 有可读 fallback UI；方块替代仍可用 |
+| **T5** | Asset strategy（不压 GLB） | 禁止压缩/重导出 GLB；critical preload + lazy rival（或等价） |
+| **T6** | Pause + reduce motion | Esc 暂停；可关 shake / cam punch（reduce motion） |
+| **T7** | i18n CN/EN HUD | HUD / 结果文案 CN↔EN 切换；默认 CN |
+| **T8** | LICENSE + CONTRIBUTING | 根目录 LICENSE + CONTRIBUTING；与公开 repo 一致 |
+
+**Scheduling:** 可与 Wave 1–2 / Spread **并行**（尤其 T1/T2/T3/T8）；勿阻塞手感/传播玩法验收。
+
+### Juice 清单 / Juice checklist（用户已选 J1–J8 全做；含 J4+J5）
+
+用户勾选 **J1–J8 全部**（**J4 与 J5 均做**）。与 Wave 1 #2 Juice 对齐并细化。明细与验收见 [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) Juice 表。
+
+| ID | Item | Codex acceptance（摘要） |
+|----|------|--------------------------|
+| **J1** | Push impact | 成功推：FOV punch + 轻 screen shake + rival 闪一下；reduce-motion 时可关 shake |
+| **J2** | Collapse warn layer | 预警格：边缘 glow 脉冲 + crack flash；tick SFX（可 mute） |
+| **J3** | Collapse moment | 塌落：fall trail + dust particles + 低沉 rumble（可 mute） |
+| **J4** | Out sequence | 出局：短慢动作 + cam pullback + 「出局了！」pop |
+| **J5** | Jump land | 落地：squash + land dust（可感知但不拖沓） |
+| **J6** | Multi-push float text | 连推浮字：「再推！」「双推」等；不挡操作 |
+| **J7** | Final 2×2 heartbeat | 与 sudden-death 联动：红 tint、更快心跳节奏、边缘 flash |
+| **J8** | Win celebration | 胜利：confetti 或 bean hop + win sting |
+
+**Scheduling:** 优先随 Wave 1 #2；可与 Spread A/C 视觉钩子叠加。尊重 T6 reduce motion。
+
 ---
 
-## 10. Scope — Wave 1–3（相对 v0）
+## 10. Scope — Wave 1–3 + Spread + Engineering + Juice（相对 v0）
 
-**In scope（Wave 1–2 编码；Wave 3 = Tripo）**
+**In scope（Wave 1–2 编码；Wave 3 = Tripo；Spread A/B/C/F/G；Engineering T1–T8；Juice J1–J8）**
 
 - Physics polish（edge AABB、coyote、jump buffer）  
-- Juice VFX / camera punch / warn glow / out feedback  
+- Juice VFX / camera punch / warn glow / out feedback → **J1–J8** checklist  
 - Smarter AI + sudden-death 2×2 + result/share screen  
 - **InstancedMesh** tiles  
 - **Mobile touch** UI  
 - **Richer SFX / BGM**  
 - **Spectator** after elimination  
 - Keep win/lose UI（中文）+ replay  
-- Keep modular layout（`game.js` / assets / docs）  
+- Keep modular layout（`game.js` / assets / docs） → **T1** modules  
+- **Spread:** opening hook · 25–35s harsh rounds · meme copy · local streak board · local 2P  
+- **Engineering:** Playwright CI · richer analytics · error UI · asset lazy/preload · pause/a11y · i18n · LICENSE  
 
 **Explicitly out of scope**
 
-- Netcode / multiplayer servers / accounts / rankings  
+- Netcode / multiplayer servers / accounts / **global** rankings（本地榜 / 可选匿名榜 OK — Spread F）  
 - Unity / Unreal  
-- Cosmetics shop / battle pass / monetization  
+- Cosmetics shop / battle pass / monetization / **H gacha skins**  
 - Minecraft / Fall Guys / 蛋仔 assets, names, or lookalikes  
-- Voice chat / full replay editor  
+- Voice chat / full replay editor / **D GIF replay** / **E daily seed**  
 
 ---
 
@@ -176,8 +229,9 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 - **保留** `/_vercel/insights` script 与现有 `va` custom events；新流程（结果页、观战、触控）可加事件。  
 - 遗留 bug 用 [CODEX_HANDOFF.md](./CODEX_HANDOFF.md) 同款格式交接（已知问题 + repro + acceptance）。  
 - **3D 皮肤 / 新地图 mesh = Tripo bot 后续**，不是 Codex 职责。Codex 只做代码与 UI 接线。  
-- 详细 backlog + 验收条： [TRIAGE_WAVES.md](./TRIAGE_WAVES.md)。  
-- 已知 v0 问题清单： [CODEX_HANDOFF.md](./CODEX_HANDOFF.md)。
+- 详细 backlog + 验收条： [TRIAGE_WAVES.md](./TRIAGE_WAVES.md)（含 **Spread**、**Engineering**、**Juice**）。  
+- 已知 v0 问题清单： [CODEX_HANDOFF.md](./CODEX_HANDOFF.md)。  
+- **优先序：** Wave 1–2 未完成则仍 primary；Spread 可并行或随后；Engineering / Juice 可并行（Juice 优先挂 Wave 1 #2；勿挡玩法验收）。
 
 ---
 
@@ -211,4 +265,37 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 - [ ] 皮肤 / 地图变体（Tripo；估分后生成；>200 已确认）  
 
-**Role split:** PRD / 部署 docs = 本 bot · Wave 1–2 代码 = Codex / cloud agent · 3D = Tripo · 迭代修 bug = 用户 Codex。
+
+### Spread wave（open — A,B,C,F,G）
+
+- [ ] A Opening 3s hook clip before Start  
+- [ ] B Rounds 25–35s denser collapses  
+- [ ] C Meme roast copy + one-tap 小红书/剪映  
+- [ ] F Local best streak / push score（optional anon board）  
+- [ ] G Local 2P same-screen split keyboard  
+
+**Not this wave:** D · E · H
+
+### Engineering wave（open — T1–T8）
+
+- [ ] T1 Modules split  
+- [ ] T2 Playwright CI  
+- [ ] T3 Enrich analytics  
+- [ ] T4 Error boundaries  
+- [ ] T5 Asset strategy（no GLB compress）  
+- [ ] T6 Pause + reduce motion  
+- [ ] T7 i18n CN/EN  
+- [ ] T8 LICENSE + CONTRIBUTING  
+
+### Juice checklist（open — J1–J8）
+
+- [ ] J1 Push impact  
+- [ ] J2 Collapse warn layer  
+- [ ] J3 Collapse moment  
+- [ ] J4 Out sequence  
+- [ ] J5 Jump land  
+- [ ] J6 Multi-push float text  
+- [ ] J7 Final 2×2 heartbeat  
+- [ ] J8 Win celebration  
+
+**Role split:** PRD / 部署 docs = 本 bot · Wave 1–2 + Spread + Engineering + Juice 代码 = Codex / cloud agent · 3D = Tripo · 迭代修 bug = 用户 Codex。
