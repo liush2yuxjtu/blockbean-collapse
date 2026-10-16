@@ -1,0 +1,51 @@
+import { test, expect } from '@playwright/test';
+
+test('loads, starts, eliminates beans, and shows the result screen', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('body')).toBeVisible();
+
+  const start = page.locator('#start');
+  const fallback = page.locator('#fallback, [data-fallback]').first();
+  await expect.poll(async () => {
+    const ready = await start.isEnabled().catch(() => false);
+    const unavailable = await fallback.isVisible().catch(() => false);
+    return ready || unavailable;
+  }, { timeout: 30_000 }).toBeTruthy();
+
+  // Headless runners without a WebGL context should still get a readable,
+  // actionable fallback instead of an uncaught renderer exception.
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+    return;
+  }
+
+  await expect(start).toBeEnabled();
+  await start.click();
+  await expect(page.locator('#splash')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'))
+    .toMatch(/count|play/);
+
+  // __game exposes the current beans for spectator/debug tooling. Moving every
+  // bean below the arena makes the regression deterministic and fast while
+  // exercising the same physics, out, and result code as a real fall.
+  const forcedFall = await page.evaluate(() => {
+    const game = window.__game;
+    if (!game?.beans?.length) return false;
+    for (const bean of game.beans) {
+      bean.p.y = -20;
+      bean.v.y = -1;
+    }
+    return true;
+  });
+  expect(forcedFall).toBe(true);
+
+  await expect(page.locator('#result')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#resultTitle')).toContainText(/出局|赢|WIN|LOSE/i);
+  await expect(page.locator('#shareText')).toHaveValue(/blockbean-collapse|方块豆人/);
+
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});
