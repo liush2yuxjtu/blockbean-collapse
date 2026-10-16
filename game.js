@@ -74,6 +74,7 @@ for (let i = 0; i < GRID; i++) {
     tiles.push({ i, j, x, z, y: TILE_TOP - TILE_H / 2, st: 'ok', t: 0, vy: 0,
       crackAt: 4 + (ring - 1) * 2.2 + Math.random() * 5 });
   }
+}
 const tileDummy = new THREE.Object3D();
 const tileColor = new THREE.Color();
 const solidColor = new THREE.Color(0x6bbf3b);
