@@ -510,8 +510,7 @@ function endRound() {
     if (winnerBean) winnerBean.v.y = 7;
   }
   const roast = randomRoast();
-  const playerOut = !beans.find(b => b.name === '你')?.alive;
-  const tip = practiceComplete ? '' : firstResultTip(won ? 'win' : playerOut ? 'out' : '');
+  const tip = practiceComplete ? '' : firstResultTip(won ? 'win' : 'out');
   flash(practiceComplete ? (language === 'zh' ? '练习完成！点击再来一局进入正式局' : 'Practice complete! Start again for the real round') : (won ? '🏆 你赢了！' : '你出局了！'), 999);
   if ($('result')) {
     $('resultTitle').textContent = practiceComplete ? (language === 'zh' ? '练习完成！' : 'Practice complete!') : (won ? (language === 'zh' ? '🏆 你赢了！' : '🏆 You win!') : (language === 'zh' ? '你出局了！' : 'You are out'));
