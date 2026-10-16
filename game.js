@@ -298,7 +298,7 @@ function reset() {
   followIndex = 0;
   if ($('result')) $('result').hidden = true;
   if ($('pauseOverlay')) $('pauseOverlay').hidden = true;
-  flash(practiceRound ? '练习局：先熟悉移动、跳跃和推人' : '3', practiceRound ? 2.2 : 1);
+  flash(practiceRound ? (language === 'zh' ? '练习局：先熟悉移动、跳跃和推人' : 'Practice: learn movement, jumping, and pushing') : '3', practiceRound ? 2.2 : 1);
   unlockAudio();
   __va('round_reset', { players: beans.length, local_2p: true, practice: practiceRound });
 }
@@ -489,11 +489,11 @@ function endRound() {
     if (winnerBean) winnerBean.v.y = 7;
   }
   const roast = randomRoast();
-  flash(practiceComplete ? '练习完成！点击再来一局进入正式局' : (won ? '🏆 你赢了！' : '你出局了！'), 999);
+  flash(practiceComplete ? (language === 'zh' ? '练习完成！点击再来一局进入正式局' : 'Practice complete! Start again for the real round') : (won ? '🏆 你赢了！' : '你出局了！'), 999);
   if ($('result')) {
-    $('resultTitle').textContent = practiceComplete ? '练习完成！' : (won ? (language === 'zh' ? '🏆 你赢了！' : '🏆 You win!') : (language === 'zh' ? '你出局了！' : 'You are out'));
+    $('resultTitle').textContent = practiceComplete ? (language === 'zh' ? '练习完成！' : 'Practice complete!') : (won ? (language === 'zh' ? '🏆 你赢了！' : '🏆 You win!') : (language === 'zh' ? '你出局了！' : 'You are out'));
     $('resultDetail').textContent = practiceComplete
-      ? '已完成安全练习：下一局将开启真实塌陷和 Bot 推挤。'
+      ? (language === 'zh' ? '已完成安全练习：下一局将开启真实塌陷和 Bot 推挤。' : 'Safe practice complete: the next round enables collapse and bot pushes.')
       : (language === 'zh' ? '获胜者：' : 'Winner: ') + winner +
         (language === 'zh' ? ' · 推人分：' : ' · Pushes: ') + meScore +
         (language === 'zh' ? ' · 存活：' : ' · Alive: ') + alive.length + '/' + beans.length +
@@ -730,7 +730,7 @@ function loop() {
   cam.updateProjectionMatrix();
   if ($('hud')) {
     const spectateText = spectating && target ? ' · 观战：' + target.name : '';
-    const practiceText = practiceRound ? ' · 练习局（无塌陷/Bot推挤）' : '';
+    const practiceText = practiceRound ? (language === 'zh' ? ' · 练习局（无塌陷/Bot推挤）' : ' · Practice (no collapse / bot pushes)') : '';
     const scores = language === 'zh' ? '推人分 ' : 'Pushes ';
     $('hud').innerHTML = state === 'menu' ? '' :
       '⏱ ' + Math.max(0, timer).toFixed(0) + 's · 存活 ' + live.length + '/' + beans.length +
