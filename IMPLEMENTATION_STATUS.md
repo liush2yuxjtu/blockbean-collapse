@@ -14,6 +14,7 @@ This branch completes the currently code-ownable PRD work across Wave 1–2, Spr
 - Runtime fallback catches WebGL construction failure and GLB load errors; box substitutes keep the scene playable when assets are missing.
 - Critical hero/spikebox assets preload; rival loads lazily when Start is pressed. Existing GLBs are unchanged.
 - O2 safe first round: the first local round hides the hazard, disables Bot push pressure, and defers tile collapse; completion persists and the next round uses the real rules.
+- O3 loading gate: Start remains disabled until critical assets settle, while the loading bar exposes percentage and progressbar semantics for assistive technologies.
 - Esc pause, reduce-motion toggle, CN/EN HUD/result toggle, and persisted mute/reduce-motion/language preferences.
 - Push FOV punch/shake/flash, warning pulse/tick, collapse dust/rumble, out slow-motion/pullback, landing squash/dust, combo float text, final heartbeat tint, and win confetti/hop.
 
@@ -25,3 +26,4 @@ This branch completes the currently code-ownable PRD work across Wave 1–2, Spr
 - npm test is wired for CI; local browser execution is environment-limited when Chromium/WebGL is unavailable.
 - No GLB compression or re-export was performed.
 - O2 validation: `node --check game.js`.
+- O3 validation: Playwright asserts the disabled Start gate and progressbar attributes; CI browser coverage remains required.
