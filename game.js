@@ -101,7 +101,8 @@ const loader = new GLTFLoader(manager);
 const loadAsset = name => flags.forceFallbackAssets ? Promise.resolve(null) : loader.loadAsync('assets/' + name + '/model.glb')
   .then(g => { A[name] = g.scene; return g.scene; })
   .catch(err => { console.warn('GLB fail: ' + name, err); __va('asset_error', { asset: name }); return null; });
-await Promise.all(['hero', 'tile', 'spikebox'].map(loadAsset));
+const tileAssetPromise = loadAsset('tile');
+await Promise.all(['hero', 'spikebox'].map(loadAsset));
 if ($('loadbar')) {
   $('loadbar').style.width = '100%';
   $('loadbar').setAttribute('aria-valuenow', '100');
@@ -152,6 +153,14 @@ tileMesh.castShadow = true;
 tileMesh.receiveShadow = true;
 tileMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 scene.add(tileMesh);
+tileAssetPromise.then(() => {
+  if (!A.tile) return;
+  const replacement = tileMeshParts();
+  tileMesh.geometry.dispose();
+  tileMesh.geometry = replacement.geometry;
+  tileMesh.material = replacement.material;
+  applyTheme(theme);
+});
 
 const tiles = [];
 for (let i = 0; i < GRID; i++) {
