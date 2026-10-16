@@ -248,18 +248,18 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 ### Wave 1（open）
 
-- [ ] Edge AABB + coyote + jump buffer 可测通过  
-- [ ] Push VFX + cam punch + warn glow + out feedback  
-- [ ] AI 躲预警格 / 尖刺箱 / 会边缘推  
-- [ ] Sudden-death 2×2  
-- [ ] 结果 / 分享屏  
+- [x] Edge AABB + coyote + jump buffer 可测通过  
+- [x] Push VFX + cam punch + warn glow + out feedback  
+- [x] AI 躲预警格 / 尖刺箱 / 会边缘推  
+- [x] Sudden-death 2×2  
+- [x] 结果 / 分享屏  
 
 ### Wave 2（open）
 
-- [ ] InstancedMesh 64 tiles（低端机更稳）  
-- [ ] Mobile touch 可完成一局  
-- [ ] SFX / BGM 塌与推可闻  
-- [ ] 出局后可观战切换  
+- [x] InstancedMesh 64 tiles（低端机更稳）  
+- [x] Mobile touch 可完成一局  
+- [x] SFX / BGM 塌与推可闻  
+- [x] 出局后可观战切换  
 
 ### Wave 3（open）
 
@@ -268,34 +268,34 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 ### Spread wave（open — A,B,C,F,G）
 
-- [ ] A Opening 3s hook clip before Start  
-- [ ] B Rounds 25–35s denser collapses  
-- [ ] C Meme roast copy + one-tap 小红书/剪映  
-- [ ] F Local best streak / push score（optional anon board）  
-- [ ] G Local 2P same-screen split keyboard  
+- [x] A Opening 3s hook clip before Start  
+- [x] B Rounds 25–35s denser collapses  
+- [x] C Meme roast copy + one-tap 小红书/剪映  
+- [x] F Local best streak / push score（optional anon board）  
+- [x] G Local 2P same-screen split keyboard  
 
 **Not this wave:** D · E · H
 
 ### Engineering wave（open — T1–T8）
 
-- [ ] T1 Modules split  
-- [ ] T2 Playwright CI  
-- [ ] T3 Enrich analytics  
-- [ ] T4 Error boundaries  
-- [ ] T5 Asset strategy（no GLB compress）  
-- [ ] T6 Pause + reduce motion  
-- [ ] T7 i18n CN/EN  
-- [ ] T8 LICENSE + CONTRIBUTING  
+- [x] T1 Modules split  
+- [x] T2 Playwright CI  
+- [x] T3 Enrich analytics  
+- [x] T4 Error boundaries  
+- [x] T5 Asset strategy（no GLB compress）  
+- [x] T6 Pause + reduce motion  
+- [x] T7 i18n CN/EN  
+- [x] T8 LICENSE + CONTRIBUTING  
 
 ### Juice checklist（open — J1–J8）
 
-- [ ] J1 Push impact  
-- [ ] J2 Collapse warn layer  
-- [ ] J3 Collapse moment  
-- [ ] J4 Out sequence  
-- [ ] J5 Jump land  
-- [ ] J6 Multi-push float text  
-- [ ] J7 Final 2×2 heartbeat  
-- [ ] J8 Win celebration  
+- [x] J1 Push impact  
+- [x] J2 Collapse warn layer  
+- [x] J3 Collapse moment  
+- [x] J4 Out sequence  
+- [x] J5 Jump land  
+- [x] J6 Multi-push float text  
+- [x] J7 Final 2×2 heartbeat  
+- [x] J8 Win celebration  
 
 **Role split:** PRD / 部署 docs = 本 bot · Wave 1–2 + Spread + Engineering + Juice 代码 = Codex / cloud agent · 3D = Tripo · 迭代修 bug = 用户 Codex。
