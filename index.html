@@ -1,0 +1,20 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>方块豆人：塌了就出局 · BlockBean Collapse</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preload" href="concept/blockbean_keyart.jpg" as="image">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js">
+<style>body{margin:0;overflow:hidden;font-family:system-ui,sans-serif;background:#87ceeb}#hud{position:fixed;top:10px;left:10px;color:#fff;text-shadow:0 2px 3px #000;font-size:18px;z-index:2}
+#splash{position:fixed;inset:0;background:#000c url(concept/blockbean_keyart.jpg) center/cover;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:3;text-shadow:0 2px 6px #000}
+#splash h1{font-size:44px;margin:0}#splash button{font-size:24px;padding:12px 32px;margin-top:20px;border:0;border-radius:12px;background:#ffcc00;cursor:pointer}
+#msg{position:fixed;top:40%;width:100%;text-align:center;font-size:48px;color:#fff;text-shadow:0 3px 6px #000;z-index:2;pointer-events:none}
+#loadbar-wrap{width:min(420px,80vw);height:14px;background:#ffffff33;border-radius:8px;margin-top:16px;overflow:hidden;border:1px solid #fff6}
+#loadbar{height:100%;width:0%;background:linear-gradient(90deg,#ffcc00,#ff8800);transition:width .15s ease;border-radius:8px}
+#load{margin-top:10px;font-size:16px;opacity:.95}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script defer src="/_vercel/insights/script.js"></script>
+</head><body><div id="hud"></div><div id="msg"></div>
+<div id="splash"><h1>方块豆人：塌了就出局</h1><p>BlockBean Collapse — WASD 移动 · Space 跳 · E 推 · 最后一豆称王</p>
+<div id="loadbar-wrap"><div id="loadbar"></div></div>
+<p id="load">加载模型中… 0%</p>
+<button id="start" disabled>开始 / Start</button></div>
+<script type="module" src="game.js"></script></body></html>
