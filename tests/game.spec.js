@@ -50,6 +50,9 @@ test('loads, starts, eliminates beans, and shows the result screen', async ({ pa
 
   await expect(page.locator('#result')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('#resultTitle')).toContainText(/出局|赢|WIN|LOSE/i);
+  await expect(page.locator('#contextTip')).toBeVisible();
+  await expect(page.locator('#contextTip')).toContainText(/提示|Tip/i);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('blockbean_tip_out_seen'))).toBe('1');
   await expect(page.locator('#shareText')).toHaveValue(/blockbean-collapse|方块豆人/);
 
   expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
