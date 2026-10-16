@@ -138,10 +138,9 @@ function tileMeshParts() {
     size.y ? TILE_H / size.y : 1,
     size.z ? (T * 0.96) / size.z : 1
   );
-  const material = Array.isArray(source.material)
-    ? source.material[0].clone()
-    : source.material.clone();
-  material.vertexColors = true;
+  const srcMat = Array.isArray(source.material) ? source.material[0] : source.material;
+  const material = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial();
+  material.vertexColors = !!geometry.attributes.color;
   return { geometry, material };
 }
 const { geometry: tileGeometry, material: tileMaterial } = tileMeshParts();
