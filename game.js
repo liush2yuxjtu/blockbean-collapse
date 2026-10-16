@@ -363,11 +363,12 @@ function control(b, dt) {
 }
 function physics(b, dt) {
   const wasGround = b.ground;
+  const previousY = b.p.y;
   b.v.y -= 22 * dt;
   b.p.addScaledVector(b.v, dt);
   const support = b.v.y <= 0 ? supportingTile(b) : null;
   b.ground = false;
-  if (support && b.p.y <= support.top + 0.9 && b.p.y >= support.top - 1.6) {
+  if (support && b.v.y <= 0 && previousY >= support.top - 0.05 && b.p.y <= support.top) {
     b.p.y = support.top;
     b.v.y = Math.max(0, b.v.y);
     b.ground = true;
@@ -570,5 +571,5 @@ function loop() {
   }
   renderer.render(scene, cam);
 }
-window.__game = { get state() { return state; }, get beans() { return beans; }, get tiles() { return tiles; } };
+window.__game = { get state() { return state; }, get beans() { return beans; }, get tiles() { return tiles; }, get points() { return points; }, get spectating() { return spectating; } };
 loop();
