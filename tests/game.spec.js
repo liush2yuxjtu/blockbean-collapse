@@ -61,6 +61,8 @@ test('loads, starts, eliminates beans, and shows the result screen', async ({ pa
 
   await page.keyboard.press('R');
   await expect(page.locator('#result')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'))
+    .toBe('play');
   const forcedWin = await page.evaluate(() => {
     const game = window.__game;
     if (!game?.beans?.length) return false;
