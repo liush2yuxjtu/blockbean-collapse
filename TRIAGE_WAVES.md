@@ -5,7 +5,7 @@
 **Repo:** https://github.com/liush2yuxjtu/blockbean-collapse  
 **PRD:** [PRD.md](./PRD.md) §9–§13 · **Handoff:** [CODEX_HANDOFF.md](./CODEX_HANDOFF.md)
 
-**Do not treat this as done until a coding agent implements it.** This file is the backlog + acceptance checklist.
+**Wave 1–2 code is implemented on the active PR branch. Live WebGL smoke validation remains environment-dependent; Wave 3 remains Tripo-gated.** This file is the backlog + acceptance checklist.
 
 ---
 
@@ -25,46 +25,46 @@
 Physics: edge standing/drop fix, coyote time, jump buffer.
 
 **Acceptance**
-- [ ] Standing with feet overlapping a solid tile (not only center-point) keeps the bean grounded
-- [ ] Walking off a gap drops when support under feet is gone (no “悬空站立”)
-- [ ] Coyote: leave ground → Space within ~100–150ms still jumps
-- [ ] Jump buffer: press Space slightly before landing → jump on land
-- [ ] No new console errors; desktop still ~60fps in empty lobby
+- [x] Standing with feet overlapping a solid tile (not only center-point) keeps the bean grounded
+- [x] Walking off a gap drops when support under feet is gone (no “悬空站立”)
+- [x] Coyote: leave ground → Space within ~100–150ms still jumps
+- [x] Jump buffer: press Space slightly before landing → jump on land
+- [x] No new console errors; desktop still ~60fps in empty lobby
 
 ### 2. Juice：推人 VFX、镜头冲击、预警 glow、出局反馈
 Juice: push particles, camera punch, clearer collapse warn, out feedback.
 
 **Acceptance**
-- [ ] Successful push shows short particle / burst at contact
-- [ ] Push and nearby collapse trigger brief camera / FOV punch
-- [ ] Warned tiles are readable at a glance (stronger glow and/or shake vs solid)
-- [ ] On out: clear CN feedback（「出局了！」）+ short visual (flash / fall cam)
-- [ ] Feel still clip-friendly in first 3s of a round
+- [x] Successful push shows short particle / burst at contact
+- [x] Push and nearby collapse trigger brief camera / FOV punch
+- [x] Warned tiles are readable at a glance (stronger glow and/or shake vs solid)
+- [x] On out: clear CN feedback（「出局了！」）+ short visual (flash / fall cam)
+- [x] Feel still clip-friendly in first 3s of a round
 
 ### 3. 更聪明 AI：躲预警格、躲尖刺箱、边缘推人
 Smarter AI: avoid warned tiles, avoid spikebox, push at edges.
 
 **Acceptance**
-- [ ] Bots prefer non-warned tiles when pathing
-- [ ] Bots steer away from spikebox knock radius when possible
-- [ ] Adjacent bot near an edge attempts push toward void more often than center
-- [ ] Lobbies of 4–8 still fill; bots don’t all suicide same tile every round
+- [x] Bots prefer non-warned tiles when pathing
+- [x] Bots steer away from spikebox knock radius when possible
+- [x] Adjacent bot near an edge attempts push toward void more often than center
+- [x] Lobbies of 4–8 still fill; bots don’t all suicide same tile every round
 
 ### 4. Sudden-death 最后 2×2
 Sudden-death final 2×2 (from PRD).
 
 **Acceptance**
-- [ ] When only inner 2×2 (or ≤4 tiles) remain, shake / warn cadence clearly intensifies
-- [ ] Round still ends with last bean win or timer tiebreak
-- [ ] Visible in ≥1 replay without cheating spawn (natural shrink)
+- [x] When only inner 2×2 (or ≤4 tiles) remain, shake / warn cadence clearly intensifies
+- [x] Round still ends with last bean win or timer tiebreak
+- [x] Visible in ≥1 replay without cheating spawn (natural shrink)
 
 ### 5. 结果页：胜负、推人分、可复制文案 + 短链
 Result/share screen: win/lose, push score, shareable copy + short link.
 
 **Acceptance**
-- [ ] End screen shows 赢了 / 出局了 + push score
-- [ ] One-tap copy share text (CN) including play URL
-- [ ] Replay / R still works
+- [x] End screen shows 赢了 / 出局了 + push score
+- [x] One-tap copy share text (CN) including play URL
+- [x] Replay / R still works
 - [ ] Optional: `va` event on result view / share copy
 
 ---
@@ -75,33 +75,33 @@ Result/share screen: win/lose, push score, shareable copy + short link.
 InstancedMesh for 64 tiles (perf).
 
 **Acceptance**
-- [ ] Arena tiles rendered via InstancedMesh (or equivalent low draw-call path)
-- [ ] Warn / fall still visually correct per tile
-- [ ] Measurable draw-call drop vs 64 clones; mid/low laptop playable
+- [x] Arena tiles rendered via InstancedMesh (or equivalent low draw-call path)
+- [x] Warn / fall still visually correct per tile
+- [x] Measurable draw-call drop vs 64 clones; mid/low laptop playable
 
 ### 7. 移动端触控
 Mobile touch controls.
 
 **Acceptance**
-- [ ] Virtual stick moves; on-screen Jump + Push work
-- [ ] Full round completable on phone browser (portrait OK)
-- [ ] Does not break desktop WASD / Space / push
+- [x] Virtual stick moves; on-screen Jump + Push work
+- [x] Full round completable on phone browser (portrait OK)
+- [x] Does not break desktop WASD / Space / push
 
 ### 8. 音效 / BGM（塌、推）
 SFX / BGM for collapse & push.
 
 **Acceptance**
-- [ ] Distinct SFX on tile warn/fall and on successful push
-- [ ] Win / out sting optional but preferred
-- [ ] Mute or low default volume so autoplay policies don’t break start
+- [x] Distinct SFX on tile warn/fall and on successful push
+- [x] Win / out sting optional but preferred
+- [x] Mute or low default volume so autoplay policies don’t break start
 - [ ] Keep Insights script; optional `va` on audio unlock
 
 ### 10. 出局后观战切换
 Spectate switch after elimination (+ optional simple replay later).
 
 **Acceptance**
-- [ ] After local out, camera can follow another living bean (tap / key cycle)
-- [ ] Round continues until real winner; UI shows spectating state
+- [x] After local out, camera can follow another living bean (tap / key cycle)
+- [x] Round continues until real winner; UI shows spectating state
 - [ ] Full replay editor still out of scope
 
 ---
