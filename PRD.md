@@ -511,7 +511,7 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 - [x] O2 Practice island / safe first round  
 - [x] O3 Start gated until load ready + visible progress  
-- [ ] O4 Contextual tip on first out / first win (once)  
+- [x] O4 Contextual tip on first out / first win (once)  
 - [ ] O5 Skip + never-show-again persisted  
 - [ ] O6 Ghost demo bean for 5s if idle on title  
 

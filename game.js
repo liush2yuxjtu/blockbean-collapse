@@ -251,6 +251,20 @@ function flash(text, duration = 1.2) {
   msgT = duration;
 }
 function punch(amount = 0.18) { if (!reduceMotion) cameraPunch = Math.max(cameraPunch, amount); }
+function firstResultTip(kind) {
+  if (kind !== 'out' && kind !== 'win') return '';
+  const key = `blockbean_tip_${kind}_seen`;
+  if (localStorage.getItem(key) === '1') return '';
+  localStorage.setItem(key, '1');
+  if (language === 'zh') {
+    return kind === 'win'
+      ? '提示：先找安全砖，再把对手推离落脚点。'
+      : '提示：靠近边缘时先看下一块安全砖，别急着推人。';
+  }
+  return kind === 'win'
+    ? 'Tip: find a safe tile first, then push rivals away from your landing spot.'
+    : 'Tip: near the edge, find the next safe tile before trying to push.';
+}
 
 function reset() {
   for (const b of beans) scene.remove(b.m);
@@ -303,6 +317,7 @@ function reset() {
   spectating = false;
   followIndex = 0;
   if ($('result')) $('result').hidden = true;
+  if ($('contextTip')) { $('contextTip').hidden = true; $('contextTip').textContent = ''; }
   if ($('pauseOverlay')) $('pauseOverlay').hidden = true;
   flash(practiceRound ? (language === 'zh' ? '练习局：先熟悉移动、跳跃和推人' : 'Practice: learn movement, jumping, and pushing') : '3', practiceRound ? 2.2 : 1);
   unlockAudio();
@@ -495,6 +510,7 @@ function endRound() {
     if (winnerBean) winnerBean.v.y = 7;
   }
   const roast = randomRoast();
+  const tip = practiceComplete ? '' : firstResultTip(won ? 'win' : 'out');
   flash(practiceComplete ? (language === 'zh' ? '练习完成！点击再来一局进入正式局' : 'Practice complete! Start again for the real round') : (won ? '🏆 你赢了！' : '你出局了！'), 999);
   if ($('result')) {
     $('resultTitle').textContent = practiceComplete ? (language === 'zh' ? '练习完成！' : 'Practice complete!') : (won ? (language === 'zh' ? '🏆 你赢了！' : '🏆 You win!') : (language === 'zh' ? '你出局了！' : 'You are out'));
@@ -504,6 +520,10 @@ function endRound() {
         (language === 'zh' ? ' · 推人分：' : ' · Pushes: ') + meScore +
         (language === 'zh' ? ' · 存活：' : ' · Alive: ') + alive.length + '/' + beans.length +
         (language === 'zh' ? ' · 最佳连胜：' : ' · Best streak: ') + bestStreak;
+    if ($('contextTip')) {
+      $('contextTip').textContent = tip;
+      $('contextTip').hidden = !tip;
+    }
     $('shareText').value = formatShareText({ score: meScore, won, best: bestStreak, roast, url: PLAY_URL });
     $('roast').textContent = roast;
     $('result').hidden = false;
