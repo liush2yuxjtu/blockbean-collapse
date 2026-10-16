@@ -317,6 +317,7 @@ function reset() {
   spectating = false;
   followIndex = 0;
   if ($('result')) $('result').hidden = true;
+  if ($('contextTip')) { $('contextTip').hidden = true; $('contextTip').textContent = ''; }
   if ($('pauseOverlay')) $('pauseOverlay').hidden = true;
   flash(practiceRound ? (language === 'zh' ? '练习局：先熟悉移动、跳跃和推人' : 'Practice: learn movement, jumping, and pushing') : '3', practiceRound ? 2.2 : 1);
   unlockAudio();
