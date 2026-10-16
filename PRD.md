@@ -324,7 +324,7 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 - [x] M4 Bot count / spawn spread  
 - [x] M5 HUD size & contrast  
 - [x] M6 Start gated until load ready  
-- [ ] M7 Emphasize R on result  
+- [x] M7 Emphasize R on result  
 - [x] M8 Mute preference persisted  
 
 **Role split:** PRD / 部署 docs = 本 bot · Wave 1–2 + Spread + Engineering + Juice + Micro tweaks 代码 = Codex / cloud agent · 3D = Tripo · 迭代修 bug = 用户 Codex。
