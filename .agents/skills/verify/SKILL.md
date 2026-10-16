@@ -15,7 +15,7 @@ From the repository root, run:
 npm run verify
 ```
 
-The command delegates to `.codex/skills/verify/scripts/verify.sh`. Keep the output with the change review.
+The command delegates to `.agents/skills/verify/scripts/verify.sh`. Keep the output with the change review.
 
 ## Checks
 
@@ -36,3 +36,7 @@ The script installs the Playwright browser only when `VERIFY_INSTALL_BROWSER=1` 
 - Do not compress or re-export GLBs.
 - Do not generate 3D assets or call Tripo from this skill.
 - Use this skill on a branch/PR and report the results in the PR body or review note.
+
+## Browser gotcha
+
+The authored tile GLB is large enough that Chromium/WebGL may take longer than the former 45-second CI test timeout. When Playwright times out while waiting for `#splash` or `window.__game.state`, inspect the browser console and asset requests, then rerun with a longer local timeout before treating the app as broken. A successful live HTTP smoke proves deployment reachability but does not replace the browser interaction check.
