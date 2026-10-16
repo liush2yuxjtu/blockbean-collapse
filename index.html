@@ -1,20 +1,73 @@
-<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>方块豆人：塌了就出局 · BlockBean Collapse</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>方块豆人：塌了就出局 · BlockBean Collapse</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="preload" href="concept/blockbean_keyart.jpg" as="image">
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js">
-<style>body{margin:0;overflow:hidden;font-family:system-ui,sans-serif;background:#87ceeb}#hud{position:fixed;top:10px;left:10px;color:#fff;text-shadow:0 2px 3px #000;font-size:18px;z-index:2}
-#splash{position:fixed;inset:0;background:#000c url(concept/blockbean_keyart.jpg) center/cover;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:3;text-shadow:0 2px 6px #000}
-#splash h1{font-size:44px;margin:0}#splash button{font-size:24px;padding:12px 32px;margin-top:20px;border:0;border-radius:12px;background:#ffcc00;cursor:pointer}
-#msg{position:fixed;top:40%;width:100%;text-align:center;font-size:48px;color:#fff;text-shadow:0 3px 6px #000;z-index:2;pointer-events:none}
+<style>
+:root{--safe:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}html,body{margin:0;overflow:hidden;background:#87ceeb;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;touch-action:none}
+#hud{position:fixed;top:10px;left:10px;color:#fff;text-shadow:0 2px 3px #000;font-size:18px;line-height:1.45;z-index:4;pointer-events:none}
+#msg{position:fixed;top:37%;width:100%;text-align:center;font-size:clamp(42px,8vw,76px);font-weight:800;color:#fff;text-shadow:0 3px 6px #000;z-index:4;pointer-events:none}
+#splash{position:fixed;inset:0;background:#000c url(concept/blockbean_keyart.jpg) center/cover;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:8;text-shadow:0 2px 6px #000;padding:24px;text-align:center}
+#splash h1{font-size:clamp(34px,7vw,58px);margin:0}#splash p{max-width:720px}
+#splash button,#replayBtn,#copyBtn{font-size:20px;padding:12px 28px;border:0;border-radius:12px;background:#ffcc00;color:#231f20;cursor:pointer}
+#splash button:disabled{opacity:.5;cursor:wait}
 #loadbar-wrap{width:min(420px,80vw);height:14px;background:#ffffff33;border-radius:8px;margin-top:16px;overflow:hidden;border:1px solid #fff6}
 #loadbar{height:100%;width:0%;background:linear-gradient(90deg,#ffcc00,#ff8800);transition:width .15s ease;border-radius:8px}
-#load{margin-top:10px;font-size:16px;opacity:.95}</style>
+#load{margin-top:10px;font-size:16px;opacity:.95}
+#result{position:fixed;inset:0;display:grid;place-items:center;background:#08111dcc;z-index:7;padding:20px}
+#result[hidden]{display:none}
+.result-card{width:min(520px,92vw);background:#fff;border-radius:20px;padding:24px;text-align:center;color:#1e293b;box-shadow:0 18px 60px #0008}
+.result-card h2{font-size:38px;margin:0 0 8px}.result-card p{margin:8px 0 18px}
+#shareText{width:100%;min-height:76px;border:1px solid #cbd5e1;border-radius:10px;padding:10px;font:inherit;resize:none}
+.result-actions{display:flex;gap:10px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+#touch{position:fixed;inset:0;z-index:5;pointer-events:none}
+#stickZone{position:absolute;left:18px;bottom:calc(18px + var(--safe));width:132px;height:132px;border-radius:50%;background:#0003;border:2px solid #fff7;pointer-events:auto}
+#stickKnob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px;border-radius:50%;background:#fff9;border:2px solid #fff;transition:transform .04s linear}
+.touch-btn{position:absolute;bottom:calc(28px + var(--safe));width:72px;height:72px;border-radius:50%;border:2px solid #fff8;background:#111a;color:#fff;font-size:16px;font-weight:700;pointer-events:auto}
+#jumpBtn{right:116px}#pushBtn{right:28px;bottom:calc(92px + var(--safe))}
+#spectateBtn,#muteBtn{position:absolute;right:16px;top:16px;border:1px solid #fff8;border-radius:10px;background:#111a;color:#fff;padding:8px 12px;pointer-events:auto}
+#muteBtn{top:58px}#spectateLabel{position:absolute;right:16px;top:98px;color:#fff;text-shadow:0 2px 3px #000;font-size:14px}
+#fallback{position:fixed;inset:0;display:grid;place-items:center;background:#07111dcc;color:#fff;z-index:20;padding:24px;text-align:center}
+#fallback[hidden],#hookClip[hidden],#pauseOverlay[hidden]{display:none}
+.fallback-card{max-width:560px;background:#111827ee;border:1px solid #ffffff44;border-radius:18px;padding:24px}
+#hookClip{position:absolute;inset:12% 10% auto;height:190px;border:1px solid #fff6;border-radius:16px;background:#0008;overflow:hidden;display:grid;place-items:center}
+#hookClip:before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#ffcc0033,#ff7b2833);animation:hook-pulse 1s infinite alternate}
+.hook-bean{position:absolute;width:42px;height:52px;border-radius:45%;background:#ffcc00;left:18%;top:45%;box-shadow:0 6px 0 #b87900;animation:hook-push 3s ease-in-out forwards}
+.hook-tile{position:absolute;width:120px;height:22px;background:#6bbf3b;right:18%;bottom:25%;border-radius:5px;animation:hook-collapse 3s ease-in forwards}
+#hookClip p{position:relative;font-weight:800;font-size:20px;text-shadow:0 2px 4px #000}
+#hookSkip{position:absolute;right:10px;top:10px;font-size:13px;padding:6px 10px;border-radius:8px;background:#ffffff22;color:#fff;border:1px solid #fff8}
+@keyframes hook-push{0%,45%{transform:translateX(0)}58%{transform:translateX(85px)}75%{transform:translateX(120px) rotate(16deg)}100%{transform:translate(150px,80px) rotate(80deg)}}
+@keyframes hook-collapse{0%,55%{transform:translateY(0)}74%{transform:translateY(0) rotate(0)}100%{transform:translateY(85px) rotate(15deg);opacity:.2}}
+@keyframes hook-pulse{from{opacity:.35}to{opacity:.8}}
+.hook-done{opacity:.55}
+#pauseOverlay{position:fixed;inset:0;display:grid;place-items:center;background:#07111d99;color:#fff;font-size:30px;font-weight:800;z-index:6;text-shadow:0 2px 4px #000}
+#sudden{position:fixed;inset:0;pointer-events:none;border:0 solid #f22;z-index:3;opacity:0}
+#sudden.sudden-on{border-width:10px;opacity:.45;animation:heartbeat 1.16s ease-in-out infinite}
+@keyframes heartbeat{0%,100%{box-shadow:inset 0 0 0 #f00}50%{box-shadow:inset 0 0 80px #f004}}
+#impactFlash{position:fixed;inset:0;pointer-events:none;background:#fff;opacity:0;z-index:5}
+#impactFlash.flash-now{animation:impact .18s ease-out}
+@keyframes impact{0%{opacity:.42}100%{opacity:0}}
+.float-text{position:fixed;z-index:9;font-weight:900;font-size:24px;text-shadow:0 2px 4px #000;pointer-events:none;animation:float-up .85s ease-out forwards}
+@keyframes float-up{from{transform:translateY(0) scale(.8);opacity:1}to{transform:translateY(-70px) scale(1.2);opacity:0}}
+#langBtn,#motionBtn{position:absolute;right:16px;top:140px;border:1px solid #fff8;border-radius:10px;background:#111a;color:#fff;padding:8px 12px;pointer-events:auto}
+#motionBtn{top:182px}
+@media (min-width:800px){#touch{opacity:.75}.touch-btn,#stickZone{opacity:.42}}
+</style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
-<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments)};</script>
 <script defer src="/_vercel/insights/script.js"></script>
-</head><body><div id="hud"></div><div id="msg"></div>
-<div id="splash"><h1>方块豆人：塌了就出局</h1><p>BlockBean Collapse — WASD 移动 · Space 跳 · E 推 · 最后一豆称王</p>
-<div id="loadbar-wrap"><div id="loadbar"></div></div>
-<p id="load">加载模型中… 0%</p>
-<button id="start" disabled>开始 / Start</button></div>
-<script type="module" src="game.js"></script></body></html>
+</head>
+<body>
+<div id="hud"></div><div id="msg"></div><div id="sudden"></div><div id="impactFlash"></div><div id="pauseOverlay" hidden>已暂停 · 按 Esc 继续</div>
+<div id="splash"><h1>方块豆人：塌了就出局</h1><p>BlockBean Collapse · 方块塌了就出局，推开对手，最后一豆称王</p>
+<div id="hookClip"><div class="hook-bean"></div><div class="hook-tile"></div><p>3 秒预告：推开对手，地板先塌</p><button id="hookSkip">跳过预告</button></div>
+<div id="loadbar-wrap"><div id="loadbar"></div></div><p id="load">加载模型中… 0%</p><button id="start" disabled>开始 / Start</button><small id="controls">P1 WASD/空格/E · P2 方向键/Numpad1/Numpad0</small><button id="motionBtn">减少动效</button><button id="langBtn">EN</button></div>
+<div id="fallback" hidden><div class="fallback-card"><h2>需要开启图形加速</h2><p id="fallbackText">当前浏览器没有可用的 WebGL。请开启硬件加速或换一个支持 WebGL 的浏览器。</p></div></div>
+<div id="result" hidden><div class="result-card"><h2 id="resultTitle"></h2><p id="resultDetail"></p><p id="roast"></p><textarea id="shareText" readonly></textarea><div class="result-actions"><button id="copyBtn">复制分享文案</button><button id="replayBtn">再来一局（R）</button></div></div></div>
+<div id="touch"><div id="stickZone" aria-label="移动摇杆"><div id="stickKnob"></div></div><button class="touch-btn" id="jumpBtn">跳</button><button class="touch-btn" id="pushBtn">推</button><button id="spectateBtn">切换观战</button><button id="muteBtn">🔊 音效</button><div id="spectateLabel"></div></div>
+<script type="module" src="game.js?v=prd-1"></script>
+</body></html>
