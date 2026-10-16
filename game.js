@@ -861,12 +861,12 @@ addEventListener('mouseup', e => {
   if (e.button === 0) input.mousePush = false;
   if (e.button === 1) input.mousePush2 = false;
 });
-$('start')?.addEventListener('click', async () => {
+$('start')?.addEventListener('click', () => {
   $('splash')?.remove();
   $('ghostDemo')?.classList.remove('show');
   __va('hook_skipped', { seen: hookSeen });
-  if (!A.rival) await loadAsset('rival').then(() => { RivalProto = cloneFitted(A.rival, 1.4, 0xff795f); });
   reset();
+  if (!A.rival) loadAsset('rival').then(() => { RivalProto = cloneFitted(A.rival, 1.4, 0xff795f); });
 });
 $('hookSkip')?.addEventListener('click', () => {
   hookSeen = true;
