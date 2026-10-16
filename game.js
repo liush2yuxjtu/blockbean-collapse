@@ -101,7 +101,6 @@ const loader = new GLTFLoader(manager);
 const loadAsset = name => flags.forceFallbackAssets ? Promise.resolve(null) : loader.loadAsync('assets/' + name + '/model.glb')
   .then(g => { A[name] = g.scene; return g.scene; })
   .catch(err => { console.warn('GLB fail: ' + name, err); __va('asset_error', { asset: name }); return null; });
-const tileAssetPromise = loadAsset('tile');
 await Promise.all(['hero', 'spikebox'].map(loadAsset));
 if ($('loadbar')) {
   $('loadbar').style.width = '100%';
@@ -152,15 +151,6 @@ tileMesh.castShadow = true;
 tileMesh.receiveShadow = true;
 tileMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 scene.add(tileMesh);
-tileAssetPromise.then(() => {
-  if (!A.tile) return;
-  const replacement = tileMeshParts();
-  tileMesh.geometry.dispose();
-  tileMesh.geometry = replacement.geometry;
-  tileMesh.material = replacement.material;
-  applyTheme(theme);
-});
-
 const tiles = [];
 for (let i = 0; i < GRID; i++) {
   for (let j = 0; j < GRID; j++) {
@@ -876,6 +866,16 @@ $('start')?.addEventListener('click', () => {
   reset();
   if (!A.rival) loadAsset('rival').then(() => { RivalProto = cloneFitted(A.rival, 1.4, 0xff795f); });
 });
+setTimeout(() => {
+  loadAsset('tile').then(() => {
+    if (!A.tile) return;
+    const replacement = tileMeshParts();
+    tileMesh.geometry.dispose();
+    tileMesh.geometry = replacement.geometry;
+    tileMesh.material = replacement.material;
+    applyTheme(theme);
+  });
+}, 0);
 $('hookSkip')?.addEventListener('click', () => {
   hookSeen = true;
   if ($('hookClip')) $('hookClip').hidden = true;
