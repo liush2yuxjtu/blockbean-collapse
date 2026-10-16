@@ -4,10 +4,10 @@
 **Live:** https://blockbean-collapse.vercel.app  
 **Gallery mirror (optional):** `/workspace/gallery/tripo/blockbean-collapse/`
 
-> **Start here for what to build:** [PRD.md](./PRD.md) §9 下一波分诊（Wave 1–3 + **传播波 Spread** + **工程波 Engineering** + **Juice 清单**）· §10 Scope · §12 Codex 执行说明 · §13 Success  
-> **Checkbox backlog + acceptance:** [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) — Wave 1–3 tables · **Spread A,B,C,F,G** · **Engineering T1–T8** · **Juice J1–J8**
+> **Start here for what to build:** [PRD.md](./PRD.md) §9 下一波分诊（Wave 1–3 + Spread + Engineering + Juice + Micro + **Game surfaces** O/R/S/B/A/D/P/U/N/C/K）· §10 Scope · §12 Codex 执行说明 · §13 Success  
+> **Checkbox backlog + acceptance:** [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) — Wave 1–3 · Spread A,B,C,F,G · Engineering T1–T8 · Juice J1–J8 · Micro M1–M8 · **Onboarding O2–O6 · Retention R2/R3/R4/R6 · Social clip S1/S3–S6 · Balance B1–B6 · Accessibility A2–A6 · Modes D2/D4/D6 · Maps P1–P6 · Audio U1–U4/U6 · Monetization N1/N2/N4/N5 · Spectator C1–C5 · Ops K1–K5**
 >
-> **Priority:** Wave 1–2 still **primary** if unfinished. Spread may run **parallel** or after. Engineering + Juice may run parallel (Juice hangs on Wave 1 #2; Engineering must not block feel/spread play acceptance).  
+> **Priority:** Wave 1–2 still **primary** if unfinished. Spread may run **parallel** or after. Engineering + Juice + Micro + new Game surfaces may run parallel (Juice hangs on Wave 1 #2; Micro/surfaces may interleave; must not block Wave 1–2 feel acceptance).
 > **Not in Spread:** D GIF replay · E daily seed · H gacha skins.
 
 ## File map
@@ -48,4 +48,4 @@
 - 删除/改名任一 model.glb 后游戏仍可运行（方块替代）  
 - Console 无报错；~60fps on desktop  
 
-**Wave acceptance:** see each item under [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) (Wave 1–3 · Spread · Engineering · Juice).
+**Wave acceptance:** see each item under [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) (Wave 1–3 · Spread · Engineering · Juice · Micro · Onboarding / Retention / Social clip / Balance / Accessibility / Modes / Maps / Audio / Monetization / Spectator / Ops).
