@@ -6,7 +6,8 @@
   "description": "BlockBean Collapse: a browser based last bean standing game",
   "scripts": {
     "test": "playwright test",
-    "test:headed": "playwright test --headed"
+    "test:headed": "playwright test --headed",
+    "verify": "bash .agents/skills/verify/scripts/verify.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1"
