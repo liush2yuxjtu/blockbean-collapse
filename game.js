@@ -50,7 +50,10 @@ const A = {};
 const manager = new THREE.LoadingManager();
 manager.onProgress = (_url, loaded, total) => {
   const pct = total ? Math.round(100 * loaded / total) : 0;
-  if ($('loadbar')) $('loadbar').style.width = pct + '%';
+  if ($('loadbar')) {
+    $('loadbar').style.width = pct + '%';
+    $('loadbar').setAttribute('aria-valuenow', String(pct));
+  }
   if ($('load')) $('load').textContent = `加载模型中… ${pct}% (${loaded}/${total})`;
 };
 manager.onError = url => { console.warn('Load error', url); setText($('load'), '部分模型加载失败，使用方块替代'); __va('asset_error', { url }); };
@@ -59,7 +62,10 @@ const loadAsset = name => loader.loadAsync('assets/' + name + '/model.glb')
   .then(g => { A[name] = g.scene; return g.scene; })
   .catch(err => { console.warn('GLB fail: ' + name, err); __va('asset_error', { asset: name }); return null; });
 await Promise.all(['hero', 'spikebox'].map(loadAsset));
-if ($('loadbar')) $('loadbar').style.width = '100%';
+if ($('loadbar')) {
+  $('loadbar').style.width = '100%';
+  $('loadbar').setAttribute('aria-valuenow', '100');
+}
 if ($('load')) $('load').textContent = Object.keys(A).length >= 1 ? '关键模型就绪 ✔' : '模型缺失，使用方块替代';
 if ($('start') && renderer) $('start').disabled = false;
 __va('game_load_ready', { loaded_assets: Object.keys(A).length });
