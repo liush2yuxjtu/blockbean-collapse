@@ -1,9 +1,9 @@
 # 方块豆人 — 下一波分诊 / TRIAGE_WAVES
 
-**Locked:** 用户勾选 **#1–#10 全做** · **Spread A,B,C,F,G** · **Engineering T1–T8** · **Juice J1–J8**.  
+**Locked:** 用户勾选 **#1–#10 全做** · **Spread A,B,C,F,G** · **Engineering T1–T8** · **Juice J1–J8** · **Micro tweaks M1–M8**.  
 **Play:** https://blockbean-collapse.vercel.app  
 **Repo:** https://github.com/liush2yuxjtu/blockbean-collapse  
-**PRD:** [PRD.md](./PRD.md) §9–§13（含 Spread / Engineering / Juice）· **Handoff:** [CODEX_HANDOFF.md](./CODEX_HANDOFF.md)
+**PRD:** [PRD.md](./PRD.md) §9–§13（含 Spread / Engineering / Juice / Micro tweaks）· **Handoff:** [CODEX_HANDOFF.md](./CODEX_HANDOFF.md)
 
 **Do not treat this as done until a coding agent implements it.** This file is the backlog + acceptance checklist.
 
@@ -13,7 +13,7 @@
 
 | Role | Who | Notes |
 |------|-----|-------|
-| Coding (physics, juice, AI, UI, perf, touch, audio, spectate, Spread, Engineering) | Codex / cloud agent | Wave 1–2 primary; Spread / Engineering / Juice from this file + PRD §12 |
+| Coding (physics, juice, AI, UI, perf, touch, audio, spectate, Spread, Engineering, Micro tweaks) | Codex / cloud agent | Wave 1–2 primary; Spread / Engineering / Juice / Micro from this file + PRD §12 |
 | 3D skins / map variants | Tripo bot | Estimate credits before generate; Wave 3 |
 | Iterative bugfix | User Codex | Local playtest → fix loop（CODEX_HANDOFF 格式） |
 
@@ -174,9 +174,26 @@ Aligns with / expands Wave 1 #2. Respect T6 reduce motion.
 
 ---
 
+## Micro tweaks — 微调波（M1–M8 全做）
+
+| ID | Item | Status | Acceptance |
+|----|------|--------|------------|
+| **M1** | Push cooldown feel — short windup, clear recovery | ☐ | Push has short windup + clear recovery; cooldown readable (UI or feel); not sluggish |
+| **M2** | Camera damping / follow lag | ☐ | Chase cam has damping / follow lag; tracks without jitter; tighter when reduce-motion |
+| **M3** | Collapse pace curve — slow then rush | ☐ | Collapse cadence starts slower then rushes; still crowns last bean; no long dead air |
+| **M4** | Bot count / spawn spread | ☐ | Bot count + spawn spread tunable; no start clump; 4–8 still playable |
+| **M5** | HUD size & contrast — mobile readable | ☐ | HUD size/contrast readable on phone; does not block controls |
+| **M6** | Start button gated until load ready | ☐ | Start disabled/grey until assets ready; enabled after; loading feedback visible |
+| **M7** | Emphasize R restart on result screen | ☐ | Result screen clearly highlights **R** to restart; keyboard R still works |
+| **M8** | Mute preference persisted | ☐ | Mute choice saved to localStorage; survives refresh |
+
+**Scheduling:** Parallel OK with Wave 1–2 / Juice / Engineering; small tweaks may interleave; do not block main play acceptance.
+
+---
+
 ## Reference docs
 
-- [PRD.md](./PRD.md) — §8 Shipped · §9 Waves (+ Spread / Engineering / Juice) · §12 Codex notes · §13 Success  
+- [PRD.md](./PRD.md) — §8 Shipped · §9 Waves (+ Spread / Engineering / Juice / Micro tweaks) · §12 Codex notes · §13 Success  
 - [CODEX_HANDOFF.md](./CODEX_HANDOFF.md) — known v0 bugs + file map  
 - [ASSET_BRIEF.md](./ASSET_BRIEF.md)
 

@@ -4,10 +4,10 @@
 **Live:** https://blockbean-collapse.vercel.app  
 **Gallery mirror (optional):** `/workspace/gallery/tripo/blockbean-collapse/`
 
-> **Start here for what to build:** [PRD.md](./PRD.md) §9 下一波分诊（Wave 1–3 + **传播波 Spread** + **工程波 Engineering** + **Juice 清单**）· §10 Scope · §12 Codex 执行说明 · §13 Success  
-> **Checkbox backlog + acceptance:** [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) — Wave 1–3 tables · **Spread A,B,C,F,G** · **Engineering T1–T8** · **Juice J1–J8**
+> **Start here for what to build:** [PRD.md](./PRD.md) §9 下一波分诊（Wave 1–3 + **传播波 Spread** + **工程波 Engineering** + **Juice 清单** + **微调波 Micro tweaks**）· §10 Scope · §12 Codex 执行说明 · §13 Success  
+> **Checkbox backlog + acceptance:** [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) — Wave 1–3 tables · **Spread A,B,C,F,G** · **Engineering T1–T8** · **Juice J1–J8** · **Micro tweaks M1–M8**
 >
-> **Priority:** Wave 1–2 still **primary** if unfinished. Spread may run **parallel** or after. Engineering + Juice may run parallel (Juice hangs on Wave 1 #2; Engineering must not block feel/spread play acceptance).  
+> **Priority:** Wave 1–2 still **primary** if unfinished. Spread may run **parallel** or after. Engineering + Juice + Micro tweaks may run parallel (Juice hangs on Wave 1 #2; Micro may interleave; Engineering must not block feel/spread play acceptance).  
 > **Not in Spread:** D GIF replay · E daily seed · H gacha skins.
 
 ## File map
@@ -24,7 +24,7 @@
 3. Keep `/_vercel/insights` + existing `va` events; add events for result / share / spectate / touch if useful.  
 4. Hand leftover bugs back in this same format (issue + repro + acceptance).  
 5. **3D skins / new maps = Tripo bot**, not Codex.  
-6. Implement **Wave 1 first**, then Wave 2. Wave 3 is Tripo-led. Spread / Engineering / Juice: see priority note above (parallel OK; Wave 1–2 unfinished → still primary).
+6. Implement **Wave 1 first**, then Wave 2. Wave 3 is Tripo-led. Spread / Engineering / Juice / Micro tweaks: see priority note above (parallel OK; Wave 1–2 unfinished → still primary).
 
 ## Known issues（v0 已知问题 → map to waves）
 
@@ -48,4 +48,4 @@
 - 删除/改名任一 model.glb 后游戏仍可运行（方块替代）  
 - Console 无报错；~60fps on desktop  
 
-**Wave acceptance:** see each item under [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) (Wave 1–3 · Spread · Engineering · Juice).
+**Wave acceptance:** see each item under [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) (Wave 1–3 · Spread · Engineering · Juice · Micro tweaks).

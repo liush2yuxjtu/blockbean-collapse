@@ -2,7 +2,7 @@
 
 **Status:** v0 demo **SHIPPED**: https://blockbean-collapse.vercel.app  
 **Repo:** https://github.com/liush2yuxjtu/blockbean-collapse  
-**Analytics:** on (Vercel Pro). **Next:** Codex implements Wave 1–3; Spread + Engineering + Juice also locked (docs-only until coded).  
+**Analytics:** on (Vercel Pro). **Next:** Codex implements Wave 1–3; Spread + Engineering + Juice + **Micro tweaks M1–M8** also locked (docs-only until coded).  
 **Working title (CN):** 「方块豆人：塌了就出局」  
 **Working title (EN):** BlockBean Collapse  
 **Target:** Viral CN-community 3D game mashup (Douyin / Bilibili clip-first)  
@@ -112,7 +112,7 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 ## 9. 下一波分诊 / Next waves
 
-用户已批准 **#1–#10 全部做**，另已锁定 **传播波 A,B,C,F,G**、**工程波 T1–T8**、**Juice J1–J8**。明细与验收见 [TRIAGE_WAVES.md](./TRIAGE_WAVES.md)。摘要：
+用户已批准 **#1–#10 全部做**，另已锁定 **传播波 A,B,C,F,G**、**工程波 T1–T8**、**Juice J1–J8**、**微调波 M1–M8**。明细与验收见 [TRIAGE_WAVES.md](./TRIAGE_WAVES.md)。摘要：
 
 ### Wave 1 — 手感 + 病毒镜头（先做）
 
@@ -184,11 +184,28 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 **Scheduling:** 优先随 Wave 1 #2；可与 Spread A/C 视觉钩子叠加。尊重 T6 reduce motion。
 
+### 微调波 / Micro tweaks（用户已选 M1–M8 全做）
+
+用户勾选 **M1–M8 全部**。明细与验收见 [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) Micro tweaks 表。摘要：
+
+| ID | Item | Codex acceptance（摘要） |
+|----|------|--------------------------|
+| **M1** | Push cooldown feel | 推：短 windup → 清晰 recovery；cooldown 可读（UI 或手感）；不拖沓 |
+| **M2** | Camera damping / follow lag | 追逐相机有阻尼 / follow lag；既跟得上又不抖；reduce-motion 时可更紧 |
+| **M3** | Collapse pace curve | 塌格节奏：先慢后急（slow then rush）；仍能决出最后一豆；无长时间死气 |
+| **M4** | Bot count / spawn spread | 可调 bot 数与 spawn 分散；开局不挤成一团；4–8 仍可玩 |
+| **M5** | HUD size & contrast | HUD 字号 / 对比度在手机上可读；不挡操作区 |
+| **M6** | Start gated until load ready | Start 在资源就绪前禁用/灰显；就绪后可点；有加载反馈 |
+| **M7** | Emphasize R on result | 结果页醒目提示 **R** 重开；键盘 R 仍可用 |
+| **M8** | Mute preference persisted | 静音偏好写入 localStorage；刷新后保持 |
+
+**Scheduling:** 可与 Wave 1–2 / Juice / Engineering **并行**；小改优先穿插，勿挡主玩法验收。
+
 ---
 
-## 10. Scope — Wave 1–3 + Spread + Engineering + Juice（相对 v0）
+## 10. Scope — Wave 1–3 + Spread + Engineering + Juice + Micro tweaks（相对 v0）
 
-**In scope（Wave 1–2 编码；Wave 3 = Tripo；Spread A/B/C/F/G；Engineering T1–T8；Juice J1–J8）**
+**In scope（Wave 1–2 编码；Wave 3 = Tripo；Spread A/B/C/F/G；Engineering T1–T8；Juice J1–J8；Micro tweaks M1–M8）**
 
 - Physics polish（edge AABB、coyote、jump buffer）  
 - Juice VFX / camera punch / warn glow / out feedback → **J1–J8** checklist  
@@ -201,6 +218,7 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 - Keep modular layout（`game.js` / assets / docs） → **T1** modules  
 - **Spread:** opening hook · 25–35s harsh rounds · meme copy · local streak board · local 2P  
 - **Engineering:** Playwright CI · richer analytics · error UI · asset lazy/preload · pause/a11y · i18n · LICENSE  
+- **Micro tweaks:** push cooldown feel · cam damping · collapse pace curve · bot spawn · HUD mobile · Start gate · R on result · mute persist  
 
 **Explicitly out of scope**
 
@@ -229,9 +247,9 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 - **保留** `/_vercel/insights` script 与现有 `va` custom events；新流程（结果页、观战、触控）可加事件。  
 - 遗留 bug 用 [CODEX_HANDOFF.md](./CODEX_HANDOFF.md) 同款格式交接（已知问题 + repro + acceptance）。  
 - **3D 皮肤 / 新地图 mesh = Tripo bot 后续**，不是 Codex 职责。Codex 只做代码与 UI 接线。  
-- 详细 backlog + 验收条： [TRIAGE_WAVES.md](./TRIAGE_WAVES.md)（含 **Spread**、**Engineering**、**Juice**）。  
+- 详细 backlog + 验收条： [TRIAGE_WAVES.md](./TRIAGE_WAVES.md)（含 **Spread**、**Engineering**、**Juice**、**Micro tweaks**）。  
 - 已知 v0 问题清单： [CODEX_HANDOFF.md](./CODEX_HANDOFF.md)。  
-- **优先序：** Wave 1–2 未完成则仍 primary；Spread 可并行或随后；Engineering / Juice 可并行（Juice 优先挂 Wave 1 #2；勿挡玩法验收）。
+- **优先序：** Wave 1–2 未完成则仍 primary；Spread 可并行或随后；Engineering / Juice / Micro tweaks 可并行（Juice 优先挂 Wave 1 #2；Micro 小改可穿插；勿挡玩法验收）。
 
 ---
 
@@ -298,4 +316,15 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 - [ ] J7 Final 2×2 heartbeat  
 - [ ] J8 Win celebration  
 
-**Role split:** PRD / 部署 docs = 本 bot · Wave 1–2 + Spread + Engineering + Juice 代码 = Codex / cloud agent · 3D = Tripo · 迭代修 bug = 用户 Codex。
+### Micro tweaks（open — M1–M8）
+
+- [ ] M1 Push cooldown feel  
+- [ ] M2 Camera damping / follow lag  
+- [ ] M3 Collapse pace curve  
+- [ ] M4 Bot count / spawn spread  
+- [ ] M5 HUD size & contrast  
+- [ ] M6 Start gated until load ready  
+- [ ] M7 Emphasize R on result  
+- [ ] M8 Mute preference persisted  
+
+**Role split:** PRD / 部署 docs = 本 bot · Wave 1–2 + Spread + Engineering + Juice + Micro tweaks 代码 = Codex / cloud agent · 3D = Tripo · 迭代修 bug = 用户 Codex。

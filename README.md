@@ -3,7 +3,7 @@
 **体素塌陷淘汰赛** — Minecraft 手感 × Fall Guys 乱斗氛围的原创 IP（非官方联动）。
 
 **Play：** https://blockbean-collapse.vercel.app  
-**PRD：** [PRD.md](./PRD.md) **v1**（v0 demo shipped · Wave 1–3 · Spread A/B/C/F/G · Engineering T1–T8 · Juice J1–J8）
+**PRD：** [PRD.md](./PRD.md) **v1**（v0 demo shipped · Wave 1–3 · Spread A/B/C/F/G · Engineering T1–T8 · Juice J1–J8 · Micro tweaks M1–M8）
 
 ![Key art](./concept/blockbean_keyart.jpg)
 
@@ -32,8 +32,8 @@ npx serve .
 ## Docs
 
 - [PRD.md](./PRD.md) — 产品需求 **v1**（Shipped / Waves / Codex 说明）
-- [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) — Wave 1–3 + Spread + Engineering + Juice 验收条（#1–#10 · A/B/C/F/G · T1–T8 · J1–J8）
-- [CODEX_HANDOFF.md](./CODEX_HANDOFF.md) — 给编码 agent 的交接（指向 PRD §9–§13；Spread/Engineering/Juice）
+- [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) — Wave 1–3 + Spread + Engineering + Juice + Micro tweaks 验收条（#1–#10 · A/B/C/F/G · T1–T8 · J1–J8 · M1–M8）
+- [CODEX_HANDOFF.md](./CODEX_HANDOFF.md) — 给编码 agent 的交接（指向 PRD §9–§13；Spread/Engineering/Juice/Micro）
 - [ASSET_BRIEF.md](./ASSET_BRIEF.md) — 资产说明
 
 ## License / 版权说明
