@@ -1,0 +1,14 @@
+{
+  "name": "blockbean-collapse",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "BlockBean Collapse: a browser based last bean standing game",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1"
+  }
+}
