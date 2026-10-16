@@ -165,7 +165,7 @@ let msgT = 0;
 let cameraPunch = 0;
 let spectating = false;
 let followIndex = 0;
-let muted = false;
+let muted = localStorage.getItem('blockbean_muted') === '1';
 let audio = null;
 const input = createInputState();
 const keys = input.keys;
@@ -564,7 +564,7 @@ function bindTouch() {
   $('pushBtn')?.addEventListener('pointerup', () => { touch.push = false; });
   $('pushBtn')?.addEventListener('pointercancel', () => { touch.push = false; });
   $('spectateBtn')?.addEventListener('click', cycleSpectator);
-  $('muteBtn')?.addEventListener('click', () => { muted = !muted; applyLanguage(); });
+  $('muteBtn')?.addEventListener('click', () => { muted = !muted; localStorage.setItem('blockbean_muted', muted ? '1' : '0'); applyLanguage(); });
 }
 bindTouch();
 
