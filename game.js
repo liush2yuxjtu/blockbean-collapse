@@ -6,6 +6,28 @@ import { createInputState, readPlayerInput } from './modules/input.js';
 import { formatShareText, randomRoast, setText } from './modules/ui.js';
 
 const PLAY_URL = 'https://blockbean-collapse.vercel.app';
+const VERSION = '1.1.0';
+const BALANCE = {
+  push: {
+    easy: { force: 9, cooldown: 1.05 },
+    default: { force: 12, cooldown: 0.8 },
+    spicy: { force: 16, cooldown: 0.58 }
+  },
+  pace: { 'slow-rush': 1, steady: 0.78 },
+  ai: { calm: 0.45, default: 0.78, aggressive: 1.15 },
+  roundSeconds: [30, 45, 60]
+};
+const LOCAL_FLAGS = { maintenance: false, forceFallbackAssets: false, remoteFlagsUrl: './flags.json' };
+const MAPS = {
+  classic: { name: 'Classic', hidden: () => false },
+  pit: { name: 'Center pit', hidden: t => Math.abs(t.i - 3.5) < 1.1 && Math.abs(t.j - 3.5) < 1.1 },
+  ring: { name: 'Ring', hidden: t => (t.i + t.j) % 2 === 0 && Math.max(Math.abs(t.i - 3.5), Math.abs(t.j - 3.5)) > 2.5 }
+};
+const THEMES = {
+  grass: { tile: 0x6bbf3b, warn: 0xffa62b, sky: 0x87ceeb, fog: 0x87ceeb },
+  ice: { tile: 0xa7d8f0, warn: 0xffb703, sky: 0xbde0fe, fog: 0x8ecae6 },
+  neon: { tile: 0x3a86ff, warn: 0xff006e, sky: 0x10132f, fog: 0x15183d }
+};
 const __va = (name, data = {}) => {
   try { window.va && window.va('event', { name, data }); } catch (_) {}
 };
@@ -47,6 +69,24 @@ addEventListener('resize', () => {
 });
 
 const A = {};
+let flags = { ...LOCAL_FLAGS };
+async function loadFlags() {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1200);
+    const response = await fetch(LOCAL_FLAGS.remoteFlagsUrl, { cache: 'no-store', signal: controller.signal });
+    clearTimeout(timeout);
+    if (response.ok) flags = { ...flags, ...(await response.json()) };
+  } catch (_) {
+    __va('flags_fallback', { source: 'local' });
+  }
+  if (flags.maintenance) {
+    const node = $('maintenance');
+    if (node) { node.textContent = flags.maintenanceMessage || '维护提示：当前为安全演示模式。'; node.classList.add('show'); }
+  }
+  if (flags.forceFallbackAssets) __va('asset_kill_switch', { enabled: true });
+}
+await loadFlags();
 const manager = new THREE.LoadingManager();
 manager.onProgress = (_url, loaded, total) => {
   const pct = total ? Math.round(100 * loaded / total) : 0;
@@ -58,7 +98,7 @@ manager.onProgress = (_url, loaded, total) => {
 };
 manager.onError = url => { console.warn('Load error', url); setText($('load'), '部分模型加载失败，使用方块替代'); __va('asset_error', { url }); };
 const loader = new GLTFLoader(manager);
-const loadAsset = name => loader.loadAsync('assets/' + name + '/model.glb')
+const loadAsset = name => flags.forceFallbackAssets ? Promise.resolve(null) : loader.loadAsync('assets/' + name + '/model.glb')
   .then(g => { A[name] = g.scene; return g.scene; })
   .catch(err => { console.warn('GLB fail: ' + name, err); __va('asset_error', { asset: name }); return null; });
 await Promise.all(['hero', 'spikebox'].map(loadAsset));
@@ -98,8 +138,22 @@ for (let i = 0; i < GRID; i++) {
 const tileDummy = new THREE.Object3D();
 const tileColor = new THREE.Color();
 const solidColor = new THREE.Color(0x6bbf3b);
-const warnColor = new THREE.Color(0xff7b28);
+const warnColor = new THREE.Color(0xffa62b);
 const goneColor = new THREE.Color(0x111827);
+let theme = localStorage.getItem('blockbean_theme') || 'grass';
+let mapVariant = localStorage.getItem('blockbean_map') || 'classic';
+function applyTheme(next = theme) {
+  theme = THEMES[next] ? next : 'grass';
+  const spec = THEMES[theme];
+  scene.background.setHex(spec.sky);
+  scene.fog.color.setHex(spec.fog);
+  tileMaterial.color.setHex(spec.tile);
+  solidColor.setHex(spec.tile);
+  warnColor.setHex(spec.warn);
+  localStorage.setItem('blockbean_theme', theme);
+  $('themeSelect') && ($('themeSelect').value = theme);
+  tiles.forEach((_, i) => writeTile(i));
+}
 function writeTile(index) {
   const t = tiles[index];
   const scale = t.st === 'gone' ? 0 : 1;
@@ -113,6 +167,7 @@ function writeTile(index) {
 tiles.forEach((_, i) => writeTile(i));
 tileMesh.instanceMatrix.needsUpdate = true;
 tileMesh.instanceColor.needsUpdate = true;
+applyTheme(theme);
 
 function cloneFitted(source, size = 1.4, color) {
   if (!source) return null;
@@ -139,9 +194,10 @@ function cloneFitted(source, size = 1.4, color) {
 const HeroProto = cloneFitted(A.hero, 1.4);
 let RivalProto = cloneFitted(A.rival, 1.4, 0xff795f);
 const SpikeProto = cloneFitted(A.spikebox, 1.5);
+let SkinProto = null;
 
 function makeBean(isHero, color) {
-  const visual = cloneFitted(isHero ? A.hero : (RivalProto || A.rival), 1.4, isHero ? undefined : color);
+  const visual = cloneFitted(isHero && skin === 'mint' && SkinProto ? SkinProto : (isHero ? A.hero : (RivalProto || A.rival)), 1.4, isHero ? undefined : color);
   const group = visual || new THREE.Mesh(
     new THREE.CapsuleGeometry(0.42, 0.62, 4, 8),
     new THREE.MeshStandardMaterial({ color })
@@ -187,10 +243,96 @@ let roundDuration = 0;
 let hookSeen = false;
 let heartbeatT = 0;
 let bestStreak = Number(localStorage.getItem('blockbean_best_streak') || 0);
-let currentStreak = 0;
+let currentStreak = Number(localStorage.getItem('blockbean_current_streak') || 0);
 let bestPush = Number(localStorage.getItem('blockbean_best_push') || 0);
+let bestSurvival = Number(localStorage.getItem('blockbean_best_survival') || 0);
+let playCount = Number(localStorage.getItem('blockbean_play_count') || 0);
+let mode = localStorage.getItem('blockbean_mode') || 'classic';
+let pushLevel = localStorage.getItem('blockbean_push') || 'default';
+let paceLevel = localStorage.getItem('blockbean_pace') || 'slow-rush';
+let aiLevel = localStorage.getItem('blockbean_ai') || 'default';
+let botCount = Number(localStorage.getItem('blockbean_bots') || 6);
+let roundSeconds = Number(localStorage.getItem('blockbean_round') || 30);
+let skin = localStorage.getItem('blockbean_skin') || 'starter';
+let hudPreset = localStorage.getItem('blockbean_hud') || 'normal';
+let volume = Number(localStorage.getItem('blockbean_volume') || 0.65);
+let tipSuppressed = localStorage.getItem('blockbean_tip_never') === '1';
+let returnVisit = false;
+let roundEvents = [];
+let lastEventAt = 0;
+let clipReady = false;
+let clipHandle = localStorage.getItem('blockbean_handle') || '';
+let hazardRainT = 3;
+let ghostT = 0;
+let titleIdleT = 0;
+let ghostDemoShown = false;
+let freeLook = false;
+let bgm = null;
+let bgmGain = null;
 // O2: soften the first round so new players can learn movement, jumping, and pushing.
 let practiceRound = localStorage.getItem('blockbean_practice_done') !== '1';
+
+const dayKey = (date = new Date()) => date.toISOString().slice(0, 10);
+function dailyStats(key = dayKey()) {
+  try { return JSON.parse(localStorage.getItem('blockbean_daily_' + key) || '{"rounds":0,"pushes":0}'); } catch (_) { return { rounds: 0, pushes: 0 }; }
+}
+function saveDailyStats(resultPushes = 0) {
+  const key = dayKey();
+  const stats = dailyStats(key);
+  stats.rounds += 1;
+  stats.pushes += resultPushes;
+  localStorage.setItem('blockbean_daily_' + key, JSON.stringify(stats));
+  return stats;
+}
+function yesterdayStats() {
+  const date = new Date();
+  date.setDate(date.getDate() - 1);
+  return dailyStats(dayKey(date));
+}
+function setHudPreset(next = hudPreset) {
+  hudPreset = next;
+  document.documentElement.dataset.hud = hudPreset;
+  document.documentElement.style.setProperty('--hud-scale', hudPreset === 'large' ? '1.22' : '1');
+  document.documentElement.style.setProperty('--hud-contrast', hudPreset === 'high-contrast' ? '1' : '.82');
+  localStorage.setItem('blockbean_hud', hudPreset);
+  if ($('hudSelect')) $('hudSelect').value = hudPreset;
+}
+function syncSettings() {
+  ['modeSelect','mapSelect','themeSelect','pushSelect','paceSelect','aiSelect','botSelect','roundSelect','hudSelect'].forEach(id => { const n = $(id); if (n) n.value = ({ mode, map: mapVariant, theme, push: pushLevel, pace: paceLevel, ai: aiLevel, bot: String(botCount), round: String(roundSeconds), hud: hudPreset })[id.replace('Select','')] ?? n.value; });
+  const mint = $('skinSelect')?.querySelector('option[value="mint"]');
+  if (mint) { mint.disabled = bestStreak < 3; if (skin === 'mint' && mint.disabled) skin = 'starter'; }
+  if ($('skinSelect')) $('skinSelect').value = skin;
+  if ($('volumeSelect')) $('volumeSelect').value = String(volume);
+  if ($('pushKey')) $('pushKey').value = (localStorage.getItem('blockbean_push_key') || 'KeyE').replace(/^Key/, '');
+  setHudPreset(hudPreset);
+}
+function readSettings() {
+  mode = $('modeSelect')?.value || mode;
+  mapVariant = $('mapSelect')?.value || mapVariant;
+  if (mapVariant === 'random') mapVariant = Object.keys(MAPS)[Math.floor(Math.random() * Object.keys(MAPS).length)];
+  theme = $('themeSelect')?.value || theme;
+  pushLevel = $('pushSelect')?.value || pushLevel;
+  paceLevel = $('paceSelect')?.value || paceLevel;
+  aiLevel = $('aiSelect')?.value || aiLevel;
+  botCount = Number($('botSelect')?.value || botCount);
+  roundSeconds = Number($('roundSelect')?.value || roundSeconds);
+  skin = $('skinSelect')?.value || skin;
+  hudPreset = $('hudSelect')?.value || hudPreset;
+  volume = Number($('volumeSelect')?.value || volume);
+  const pushKey = $('pushKey')?.value?.trim().toUpperCase();
+  if (pushKey && /^[A-Z0-9]$/.test(pushKey)) { localStorage.setItem('blockbean_push_key', 'Key' + pushKey); humanInputBindings[1].push[0] = 'Key' + pushKey; }
+  localStorage.setItem('blockbean_mode', mode); localStorage.setItem('blockbean_map', mapVariant);
+  localStorage.setItem('blockbean_push', pushLevel); localStorage.setItem('blockbean_pace', paceLevel);
+  localStorage.setItem('blockbean_ai', aiLevel); localStorage.setItem('blockbean_bots', String(botCount));
+  localStorage.setItem('blockbean_round', String(roundSeconds)); localStorage.setItem('blockbean_skin', skin);
+  localStorage.setItem('blockbean_volume', String(volume)); localStorage.setItem('blockbean_handle', $('clipHandle')?.value || clipHandle);
+  applyTheme(theme); setHudPreset(hudPreset);
+}
+syncSettings();
+const lastVisit = Number(localStorage.getItem('blockbean_last_visit') || 0);
+returnVisit = lastVisit > 0 && Date.now() - lastVisit >= 2 * 86400000;
+localStorage.setItem('blockbean_last_visit', String(Date.now()));
+if (returnVisit && $('returnBanner')) { $('returnBanner').hidden = false; $('returnBanner').textContent = '欢迎回来！今天的方块岛给你留了一次轻松回归。'; }
 
 function unlockAudio() {
   if (!audio) {
@@ -199,17 +341,26 @@ function unlockAudio() {
     audio = new Ctx();
   }
   if (audio.state === 'suspended') audio.resume();
+  if (!bgm && audio) {
+    bgm = audio.createOscillator();
+    bgmGain = audio.createGain();
+    bgm.type = 'sine'; bgm.frequency.value = 110;
+    bgmGain.gain.value = muted ? 0 : volume * 0.018;
+    bgm.connect(bgmGain).connect(audio.destination);
+    bgm.start();
+  }
   __va('audio_unlock', {});
 }
-function tone(freq, duration = 0.08, type = 'sine', gain = 0.045) {
+function tone(freq, duration = 0.08, type = 'sine', gain = 0.045, pan = 0) {
   if (muted || !audio) return;
   const osc = audio.createOscillator();
   const amp = audio.createGain();
   osc.type = type;
   osc.frequency.value = freq;
-  amp.gain.setValueAtTime(gain, audio.currentTime);
+  amp.gain.setValueAtTime(gain * volume, audio.currentTime);
   amp.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + duration);
-  osc.connect(amp).connect(audio.destination);
+  const output = audio.createStereoPanner ? audio.createStereoPanner() : null;
+  if (output) { output.pan.value = clamp(pan, -1, 1); amp.connect(output).connect(audio.destination); } else amp.connect(audio.destination);
   osc.start();
   osc.stop(audio.currentTime + duration);
 }
@@ -220,21 +371,25 @@ function noise(duration = 0.12, gain = 0.05) {
   for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
   const src = audio.createBufferSource();
   const amp = audio.createGain();
-  amp.gain.value = gain;
+  amp.gain.value = gain * volume;
   src.buffer = buffer;
   src.connect(amp).connect(audio.destination);
   src.start();
 }
-function playSfx(kind) {
+function playSfx(kind, pan = 0) {
+  const caption = { warn: '⚠️ 预警砖', fall: '⬇️ 地块塌陷', push: '💥 推击命中', heartbeat: '💓 最后平台', win: '🏆 胜利', out: '❌ 出局' }[kind];
+  if (caption && $('captions')) { $('captions').textContent = caption; $('captions').classList.add('show'); setTimeout(() => $('captions')?.classList.remove('show'), 900); }
+  if (bgmGain && audio) bgmGain.gain.setTargetAtTime(kind === 'warn' ? 0.004 : (muted ? 0 : volume * 0.018), audio.currentTime, 0.08);
   if (kind === 'warn') { tone(180, 0.09, 'square', 0.03); tone(110, 0.05, 'square', 0.015); }
   if (kind === 'fall') { tone(90, 0.18, 'sawtooth', 0.04); noise(0.14, 0.04); }
-  if (kind === 'push') { tone(420, 0.07, 'triangle', 0.045); tone(620, 0.05, 'triangle', 0.025); }
+  if (kind === 'push') { tone(420, 0.07, 'triangle', 0.045, pan); tone(620, 0.05, 'triangle', 0.025, pan); }
   if (kind === 'heartbeat') tone(90, 0.11, 'sine', 0.035);
   if (kind === 'win') { tone(520, 0.12, 'triangle', 0.04); setTimeout(() => tone(780, 0.18, 'triangle', 0.04), 80); }
   if (kind === 'out') { tone(150, 0.24, 'sawtooth', 0.04); noise(0.1, 0.02); }
 }
 
 const particles = [];
+const trailGhosts = [];
 function burst(pos, color = 0xffdd55, count = 12) {
   for (let i = 0; i < count; i++) {
     const m = new THREE.Mesh(
@@ -246,6 +401,13 @@ function burst(pos, color = 0xffdd55, count = 12) {
     particles.push({ m, v: new THREE.Vector3((Math.random() - 0.5) * 5, Math.random() * 4, (Math.random() - 0.5) * 5), t: 0.45 + Math.random() * 0.3 });
   }
 }
+function trailGhost(bean) {
+  if (mode !== 'ghost-trail' || !bean?.ai || !bean.alive || reduceMotion) return;
+  const mat = new THREE.MeshBasicMaterial({ color: bean.color, transparent: true, opacity: 0.22, depthWrite: false });
+  const ghost = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 8), mat);
+  ghost.position.copy(bean.p); ghost.position.y += 0.55; scene.add(ghost);
+  trailGhosts.push({ m: ghost, t: 0.8 });
+}
 function flash(text, duration = 1.2) {
   if ($('msg')) $('msg').textContent = text;
   msgT = duration;
@@ -253,6 +415,7 @@ function flash(text, duration = 1.2) {
 function punch(amount = 0.18) { if (!reduceMotion) cameraPunch = Math.max(cameraPunch, amount); }
 function firstResultTip(kind) {
   if (kind !== 'out' && kind !== 'win') return '';
+  if (tipSuppressed) return '';
   const key = `blockbean_tip_${kind}_seen`;
   if (localStorage.getItem(key) === '1') return '';
   localStorage.setItem(key, '1');
@@ -267,6 +430,8 @@ function firstResultTip(kind) {
 }
 
 function reset() {
+  readSettings();
+  if (skin === 'mint' && !SkinProto && !flags.forceFallbackAssets) loadAsset('skin_mint').then(s => { SkinProto = cloneFitted(s, 1.4, 0x9be7c4); });
   for (const b of beans) scene.remove(b.m);
   if (spike) scene.remove(spike.m);
   beans = [];
@@ -278,7 +443,7 @@ function reset() {
   cameraPullback = 0;
   particles.splice(0).forEach(p => scene.remove(p.m));
   for (const [i, t] of tiles.entries()) {
-    t.st = 'ok'; t.t = 0; t.vy = 0; t.y = TILE_TOP - TILE_H / 2;
+    t.st = MAPS[mapVariant]?.hidden(t) ? 'gone' : 'ok'; t.blocked = t.st === 'gone'; t.t = 0; t.vy = 0; t.y = TILE_TOP - TILE_H / 2;
     t.crackAt = 999;
     writeTile(i);
   }
@@ -289,9 +454,9 @@ function reset() {
   });
   collapseOrder.forEach((t, index) => {
     const ring = Math.max(Math.abs(t.i - 3.5), Math.abs(t.j - 3.5));
-    t.crackAt = practiceRound ? Infinity : collapseDelay(index, ring);
+    t.crackAt = practiceRound ? Infinity : collapseDelay(index, ring) * BALANCE.pace[paceLevel];
   });
-  const count = 6 + Math.floor(Math.random() * 3);
+  const count = Math.max(4, Math.min(8, botCount));
   const colors = [0xff5555, 0x55aaff, 0xffdd33, 0xaa66ff, 0xff9933, 0x33ddaa, 0xff66cc, 0xc084fc];
   for (let k = 0; k < count; k++) {
     const angle = k / count * Math.PI * 2;
@@ -310,7 +475,7 @@ function reset() {
   spike = { m: sm, a: 0 };
   sm.position.set(0, TILE_TOP + 0.05, 0);
   scene.add(sm);
-  timer = 30;
+  timer = roundSeconds;
   countdown = 3;
   state = 'count';
   paused = false;
@@ -322,6 +487,12 @@ function reset() {
   flash(practiceRound ? (language === 'zh' ? '练习局：先熟悉移动、跳跃和推人' : 'Practice: learn movement, jumping, and pushing') : '3', practiceRound ? 2.2 : 1);
   unlockAudio();
   __va('round_reset', { players: beans.length, local_2p: true, practice: practiceRound });
+  roundEvents = [{ at: performance.now(), type: 'round_reset', mode, map: mapVariant, theme }];
+  lastEventAt = performance.now();
+  clipReady = false;
+  hazardRainT = 3;
+  ghostT = 0;
+  syncSettings();
 }
 function tileAt(x, z) {
   const i = Math.floor(x / T + GRID / 2);
@@ -341,14 +512,14 @@ function supportingTile(b) {
   return best;
 }
 function chooseTarget(b) {
-  const aliveTiles = tiles.filter(t => t.st === 'ok');
+  const aliveTiles = tiles.filter(t => t.st === 'ok' && !t.blocked);
   if (!aliveTiles.length) return null;
   const danger = spike.m.position;
   const ranked = aliveTiles.map(t => {
     const dist = Math.hypot(t.x - b.p.x, t.z - b.p.z);
     const spikeDist = Math.hypot(t.x - danger.x, t.z - danger.z);
     const edge = Math.max(Math.abs(t.x), Math.abs(t.z));
-    return { t, score: dist * 0.5 + (spikeDist < 3.2 ? 8 : 0) + edge * 0.2 + Math.random() * 2 };
+    return { t, score: dist * 0.5 + (spikeDist < 3.2 ? 8 * BALANCE.ai[aiLevel] : 0) + edge * (0.2 / BALANCE.ai[aiLevel]) + Math.random() * 2 };
   }).sort((a, c) => a.score - c.score);
   return ranked[0].t;
 }
@@ -364,7 +535,7 @@ function inputFor(b) {
   const nearby = beans.find(o => o !== b && o.alive && o.p.distanceTo(b.p) < 1.8);
   const nearEdge = Math.max(Math.abs(b.p.x), Math.abs(b.p.z)) > 6.2;
   let push = false;
-  if (nearby && nearEdge) { tx = nearby.p.x; tz = nearby.p.z; push = true; }
+  if (mode !== 'no-push' && nearby && nearEdge && BALANCE.ai[aiLevel] > 0.6) { tx = nearby.p.x; tz = nearby.p.z; push = true; }
   const fromSpike = b.p.clone().sub(spike.m.position);
   if (fromSpike.y = 0, fromSpike.length() < 3.3) { tx = b.p.x + fromSpike.x * 2; tz = b.p.z + fromSpike.z * 2; }
   const dx = tx - b.p.x;
@@ -385,6 +556,8 @@ function floatText(text, pos, color = '#fff7a8') {
   setTimeout(() => el.remove(), 850);
 }
 function pushBean(b) {
+  if (mode === 'no-push') return;
+  const pushSpec = BALANCE.push[pushLevel] || BALANCE.push.default;
   const f = new THREE.Vector3(Math.sin(b.m.rotation.y), 0, Math.cos(b.m.rotation.y));
   let hit = false;
   for (const o of beans) {
@@ -392,7 +565,7 @@ function pushBean(b) {
     const delta = o.p.clone().sub(b.p);
     delta.y = 0;
     if (delta.length() < 2.0 && delta.normalize().dot(f) > 0.15) {
-      o.v.addScaledVector(delta, 12);
+      o.v.addScaledVector(delta, pushSpec.force);
       o.v.y = Math.max(o.v.y, 4);
       if (!b.ai) {
         points[b.name] += 1;
@@ -408,7 +581,8 @@ function pushBean(b) {
         setTimeout(() => o.alive && o.m.scale.setScalar(1), 130);
       }
       hit = true;
-      playSfx('push');
+      playSfx('push', clamp(o.p.x / 8, -1, 1));
+      roundEvents.push({ at: performance.now(), type: 'push', x: o.p.x, z: o.p.z });
       __va('push_hit', { player: b.name, target: o.name, push_count: pushCount });
     }
   }
@@ -440,8 +614,8 @@ function control(b, dt) {
     tone(340, 0.06, 'triangle', 0.025);
   }
   b.cd -= dt;
-  if (input.push && b.cd <= 0 && (!practiceRound || !b.ai)) {
-    b.cd = 0.8;
+  if (input.push && b.cd <= 0 && mode !== 'no-push' && (!practiceRound || !b.ai)) {
+    b.cd = (BALANCE.push[pushLevel] || BALANCE.push.default).cooldown;
     pushBean(b);
     b.m.scale.setScalar(1.2);
     setTimeout(() => b.m.scale.setScalar(1), 120);
@@ -489,16 +663,25 @@ function endRound() {
   const meScore = points['你'] || 0;
   const won = !practiceComplete && winner === '你';
   roundDuration = Math.max(0, Math.round((performance.now() - roundStart) / 1000));
+  const yesterday = yesterdayStats();
+  const today = saveDailyStats(meScore);
   if (practiceComplete) {
     localStorage.setItem('blockbean_practice_done', '1');
     practiceRound = false;
   } else {
+    playCount += 1;
+    localStorage.setItem('blockbean_play_count', String(playCount));
     currentStreak = won ? currentStreak + 1 : 0;
     bestStreak = Math.max(bestStreak, currentStreak);
     bestPush = Math.max(bestPush, meScore);
+    bestSurvival = Math.max(bestSurvival, roundDuration);
     localStorage.setItem('blockbean_best_streak', String(bestStreak));
+    localStorage.setItem('blockbean_current_streak', String(currentStreak));
     localStorage.setItem('blockbean_best_push', String(bestPush));
+    localStorage.setItem('blockbean_best_survival', String(bestSurvival));
   }
+  clipReady = true;
+  roundEvents = roundEvents.slice(-240);
   state = 'over';
   slowMo = 0.45;
   cameraPullback = 2;
@@ -524,14 +707,37 @@ function endRound() {
       $('contextTip').textContent = tip;
       $('contextTip').hidden = !tip;
     }
-    $('shareText').value = formatShareText({ score: meScore, won, best: bestStreak, roast, url: PLAY_URL });
+    const variant = won && roundDuration >= Math.max(25, roundSeconds - 5) ? 'clutch' : (won ? 'win' : 'defeat');
+    $('shareText').value = formatShareText({ score: meScore, won, best: bestStreak, roast, url: PLAY_URL, variant, handle: clipHandle });
     $('roast').textContent = roast;
+    if ($('bestBoard')) $('bestBoard').textContent = `本地最佳：连胜 ${bestStreak} · 推人 ${bestPush} · 存活 ${bestSurvival}s · 今日 ${today.rounds} 局/${today.pushes} 推 · 昨日 ${yesterday.rounds} 局/${yesterday.pushes} 推`;
+    if ($('clipStatus')) $('clipStatus').textContent = '近 10 秒本地事件缓冲已就绪，可下载分享卡。';
+    if ($('clipHandle')) $('clipHandle').value = clipHandle;
+    if ($('tipActions')) $('tipActions').hidden = !tip;
     $('result').hidden = false;
   }
   __va('round_end', {
     result: practiceComplete ? 'practice' : (won ? 'win' : 'lose'), winner, push_score: meScore, alive: alive.length,
     duration_s: roundDuration, push_count: pushCount, best_streak: bestStreak
   });
+  syncSettings();
+}
+function downloadShareCard() {
+  const canvas = $('shareCard');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  gradient.addColorStop(0, theme === 'neon' ? '#111827' : '#0f766e');
+  gradient.addColorStop(1, theme === 'ice' ? '#dbeafe' : '#f59e0b');
+  ctx.fillStyle = gradient; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#fff'; ctx.font = '800 64px system-ui'; ctx.fillText('方块豆人：塌了就出局', 70, 130);
+  ctx.font = '700 44px system-ui'; ctx.fillText($('resultTitle')?.textContent || '', 70, 220);
+  ctx.font = '500 32px system-ui'; ctx.fillText($('resultDetail')?.textContent || '', 70, 290);
+  ctx.font = '600 30px system-ui'; ctx.fillText($('roast')?.textContent || '', 70, 390);
+  ctx.font = '500 24px system-ui'; ctx.fillText((clipHandle ? '@' + clipHandle + ' · ' : '') + PLAY_URL, 70, 540);
+  const a = document.createElement('a');
+  a.download = 'blockbean-collapse-share.png'; a.href = canvas.toDataURL('image/png'); a.click();
+  __va('share_card_download', { clip_buffer: clipReady, handle: Boolean(clipHandle) });
 }
 function cycleSpectator() {
   const live = beans.filter(b => b.alive);
@@ -551,14 +757,16 @@ function applyLanguage() {
   setText($('motionBtn'), tr('motion'));
   setText($('muteBtn'), muted ? tr('muted') : tr('mute'));
   if ($('controls')) $('controls').textContent = tr('controls');
+  if ($('pauseText')) $('pauseText').textContent = tr('pause');
   if ($('pauseOverlay') && !paused) $('pauseOverlay').hidden = true;
+  if ($('pushBtn')) $('pushBtn').hidden = mode === 'no-push';
 }
 function togglePause() {
   if (state === 'menu' || state === 'over') return;
   paused = !paused;
   if ($('pauseOverlay')) {
     $('pauseOverlay').hidden = !paused;
-    $('pauseOverlay').textContent = tr('pause');
+    if ($('pauseText')) $('pauseText').textContent = tr('pause');
   }
   __va('pause_toggle', { paused });
 }
@@ -602,6 +810,7 @@ function bindTouch() {
   $('pushBtn')?.addEventListener('pointerup', () => { touch.push = false; });
   $('pushBtn')?.addEventListener('pointercancel', () => { touch.push = false; });
   $('spectateBtn')?.addEventListener('click', cycleSpectator);
+  $('freeLookBtn')?.addEventListener('click', () => { freeLook = !freeLook; if ($('freeLookBtn')) $('freeLookBtn').textContent = freeLook ? '跟随视角' : '自由视角'; __va('free_look_toggle', { enabled: freeLook }); });
   $('muteBtn')?.addEventListener('click', () => { muted = !muted; localStorage.setItem('blockbean_muted', muted ? '1' : '0'); applyLanguage(); });
 }
 bindTouch();
@@ -626,6 +835,7 @@ addEventListener('mouseup', e => {
 });
 $('start')?.addEventListener('click', async () => {
   $('splash')?.remove();
+  $('ghostDemo')?.classList.remove('show');
   __va('hook_skipped', { seen: hookSeen });
   if (!A.rival) await loadAsset('rival').then(() => { RivalProto = cloneFitted(A.rival, 1.4, 0xff795f); });
   reset();
@@ -637,7 +847,7 @@ $('hookSkip')?.addEventListener('click', () => {
 });
 setTimeout(() => {
   hookSeen = true;
-  if ($('hookClip')) $('hookClip').classList.add('hook-done');
+  if ($('hookClip')) { $('hookClip').classList.add('hook-done', 'hook-frozen'); }
   __va('hook_view', { duration_s: 3 });
 }, 3000);
 $('langBtn')?.addEventListener('click', toggleLanguage);
@@ -654,12 +864,42 @@ $('copyBtn')?.addEventListener('click', async () => {
   } catch (_) { if ($('shareText')) $('shareText').select(); }
 });
 $('shareText')?.addEventListener('click', e => e.target.select());
+$('cardBtn')?.addEventListener('click', downloadShareCard);
+$('clipHandle')?.addEventListener('input', e => { clipHandle = e.target.value; localStorage.setItem('blockbean_handle', clipHandle); });
+$('tipSkip')?.addEventListener('click', () => { if ($('contextTip')) $('contextTip').hidden = true; if ($('tipActions')) $('tipActions').hidden = true; });
+$('tipNever')?.addEventListener('click', () => { tipSuppressed = true; localStorage.setItem('blockbean_tip_never', '1'); if ($('contextTip')) $('contextTip').hidden = true; if ($('tipActions')) $('tipActions').hidden = true; });
+['modeSelect','mapSelect','themeSelect','pushSelect','paceSelect','aiSelect','botSelect','roundSelect','skinSelect','hudSelect','volumeSelect','pushKey'].forEach(id => $(id)?.addEventListener('change', () => { readSettings(); syncSettings(); }));
+setTimeout(() => {
+  if (state === 'menu' && !$('splash')?.hidden && $('ghostDemo')) { $('ghostDemo').classList.add('show'); ghostDemoShown = true; __va('ghost_demo_show', {}); }
+}, 5000);
+let quitTimer = null;
+const quitToLobby = () => {
+  if (!paused) return;
+  paused = false; state = 'menu';
+  beans.forEach(b => scene.remove(b.m)); beans = [];
+  if (spike) scene.remove(spike.m);
+  $('pauseOverlay') && ($('pauseOverlay').hidden = true);
+  $('splash')?.remove();
+  const splash = document.createElement('div');
+  splash.id = 'splash'; splash.innerHTML = '<h1>方块豆人：塌了就出局</h1><p>已回到大厅。选择设置后重新开始。</p><button id="startLobby">开始 / Start</button>';
+  document.body.appendChild(splash);
+  $('startLobby')?.addEventListener('click', () => { splash.remove(); reset(); });
+  __va('return_to_lobby', {});
+};
+$('quitHold')?.addEventListener('pointerdown', () => { quitTimer = setTimeout(quitToLobby, 900); });
+['pointerup','pointercancel','pointerleave'].forEach(event => $('quitHold')?.addEventListener(event, () => { if (quitTimer) clearTimeout(quitTimer); quitTimer = null; }));
 
 let frameDt = 0.016;
 const clock = new THREE.Clock();
 function loop() {
   requestAnimationFrame(loop);
   frameDt = Math.min(clock.getDelta(), 0.05);
+  if (state === 'play' && performance.now() - lastEventAt > 250) {
+    lastEventAt = performance.now();
+    const me = beans[0];
+    roundEvents.push({ at: lastEventAt, type: 'snapshot', x: me?.p.x || 0, z: me?.p.z || 0, alive: beans.filter(b => b.alive).length });
+    roundEvents = roundEvents.filter(event => lastEventAt - event.at <= 10000);
+  }
   if (paused) { if (renderer) renderer.render(scene, cam); return; }
   const dt = frameDt * (slowMo > 0 ? 0.35 : 1);
   if (msgT > 0) { msgT -= dt; if (msgT <= 0 && state !== 'over' && $('msg')) $('msg').textContent = ''; }
@@ -667,6 +907,8 @@ function loop() {
     countdown -= dt;
     if ($('msg')) $('msg').textContent = countdown > 0 ? Math.ceil(countdown) : 'GO!';
     beans.forEach(b => physics(b, dt));
+    // Resolve deterministic test/debug falls during the countdown as well as during play.
+    if (beans.length && beans.filter(b => b.alive).length <= 1) endRound();
     if (countdown <= 0) {
       state = 'play';
       roundStart = performance.now();
@@ -675,7 +917,7 @@ function loop() {
     }
   } else if (state === 'play' || state === 'over') {
     if (state === 'play') timer -= dt;
-    const elapsed = 30 - timer;
+    const elapsed = roundSeconds - timer;
     const aliveTiles = tiles.filter(t => t.st === 'ok' || t.st === 'crack');
     const sudden = !practiceRound && aliveTiles.length <= 4;
     if ($('sudden')) $('sudden').classList.toggle('sudden-on', sudden);
@@ -716,6 +958,17 @@ function loop() {
     spike.a += dt * (sudden ? 1.15 : 0.7);
     spike.m.position.set(Math.cos(spike.a) * 6, TILE_TOP + 0.05, Math.sin(spike.a * 1.3) * 6);
     spike.m.rotation.y += dt * 2;
+    if (mode === 'hazard-rain' && !practiceRound) {
+      hazardRainT -= dt;
+      if (hazardRainT <= 0) {
+        hazardRainT = 3.2;
+        const drop = new THREE.Vector3((Math.random() - 0.5) * 12, 8, (Math.random() - 0.5) * 12);
+        burst(drop, 0xff006e, 18);
+        beans.forEach(b => { if (b.alive && b.p.distanceTo(drop) < 2.2) { b.v.y = Math.max(b.v.y, 5); b.v.x += (b.p.x - drop.x) * 2; b.v.z += (b.p.z - drop.z) * 2; } });
+        __va('hazard_rain', { x: Math.round(drop.x), z: Math.round(drop.z) });
+      }
+    }
+    ghostT -= dt;
     beans.forEach(b => {
       if (!b.alive) return;
       control(b, dt);
@@ -730,7 +983,9 @@ function loop() {
         punch(0.12);
         tone(110, 0.1, 'square', 0.025);
       }
+      if (ghostT <= 0) trailGhost(b);
     });
+    if (ghostT <= 0) ghostT = 0.22;
     if (state === 'play') {
       const alive = beans.filter(b => b.alive);
       if (alive.length <= 1 || timer <= 0) endRound();
@@ -743,14 +998,17 @@ function loop() {
     p.m.material.opacity = Math.max(0, p.t / 0.7);
     if (p.t <= 0) { scene.remove(p.m); particles.splice(i, 1); }
   }
+  for (let i = trailGhosts.length - 1; i >= 0; i--) {
+    const ghost = trailGhosts[i]; ghost.t -= frameDt; ghost.m.material.opacity = Math.max(0, ghost.t * 0.28);
+    if (ghost.t <= 0) { scene.remove(ghost.m); trailGhosts.splice(i, 1); }
+  }
   const live = beans.filter(b => b.alive);
   let target = beans[0];
   if (spectating && live.length) target = live[followIndex % live.length];
   const focus = target?.p || new THREE.Vector3();
   const desired = new THREE.Vector3(focus.x, focus.y + 9, focus.z + 11 + cameraPullback);
   const shake = cameraPunch > 0 ? new THREE.Vector3((Math.random() - 0.5) * cameraPunch, (Math.random() - 0.5) * cameraPunch, 0) : new THREE.Vector3();
-  cam.position.lerp(desired.add(shake), 0.12);
-  cam.lookAt(focus.x, focus.y, focus.z);
+  if (!freeLook) { cam.position.lerp(desired.add(shake), reduceMotion ? 0.24 : 0.12); cam.lookAt(focus.x, focus.y, focus.z); }
   cameraPunch = Math.max(0, cameraPunch - dt * 1.7);
   cam.fov = baseFov + cameraPunch * 18;
   cam.updateProjectionMatrix();
@@ -758,10 +1016,13 @@ function loop() {
     const spectateText = spectating && target ? ' · 观战：' + target.name : '';
     const practiceText = practiceRound ? (language === 'zh' ? ' · 练习局（无塌陷/Bot推挤）' : ' · Practice (no collapse / bot pushes)') : '';
     const scores = language === 'zh' ? '推人分 ' : 'Pushes ';
+    const modeText = mode === 'no-push' ? ' · No-push' : mode === 'hazard-rain' ? ' · Hazard rain' : mode === 'ghost-trail' ? ' · Ghost trail' : '';
+    const specText = spectating ? (language === 'zh' ? ' · 下一块预警：留意橙色裂纹' : ' · Next collapse: watch orange cracks') : '';
+    const watermark = spectating && clipHandle ? ' · @' + clipHandle : '';
     $('hud').innerHTML = state === 'menu' ? '' :
       '⏱ ' + Math.max(0, timer).toFixed(0) + 's · 存活 ' + live.length + '/' + beans.length +
       ' · ' + scores + (points['你'] || 0) + ' · 最佳连胜 ' + bestStreak + practiceText + spectateText +
-      '<br><small id="controls">' + tr('controls') + '</small>';
+      modeText + specText + watermark + '<br><small id="controls">' + tr('controls') + '</small>';
   }
   if (renderer) renderer.render(scene, cam);
 }

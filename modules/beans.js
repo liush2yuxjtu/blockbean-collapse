@@ -6,6 +6,6 @@ export const createBeanState = ({ name, ai, p, mesh, color, human = 0 }) => ({
   lastGround: false
 });
 export const humanInputBindings = {
-  1: { left: 'KeyA', right: 'KeyD', up: 'KeyW', down: 'KeyS', jump: 'Space', push: ['KeyE', 'KeyF', 'Mouse0'] },
+  1: { left: 'KeyA', right: 'KeyD', up: 'KeyW', down: 'KeyS', jump: 'Space', push: [localStorage.getItem('blockbean_push_key') || 'KeyE', 'KeyF', 'Mouse0'] },
   2: { left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', down: 'ArrowDown', jump: 'Numpad1', push: ['Numpad0', 'Enter', 'ShiftLeft', 'Mouse1'] }
 };

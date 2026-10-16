@@ -1,8 +1,9 @@
 # 方块豆人：塌了就出局 / BlockBean Collapse — PRD v1
 
-**Status:** v0 demo **SHIPPED**: https://blockbean-collapse.vercel.app  
+**Status:** v1.1 code-ownable PRD surfaces **SHIPPED** on `main`; v0 demo: https://blockbean-collapse.vercel.app
 **Repo:** https://github.com/liush2yuxjtu/blockbean-collapse  
-**Analytics:** on (Vercel Pro). **Next:** Codex implements Wave 1–3; Spread + Engineering + Juice + Micro + **new locked surfaces** (Onboarding O2–O6 · Retention R2/R3/R4/R6 · Social clip S1/S3–S6 · Balance B1–B6 · Accessibility A2–A6 · Modes D2/D4/D6 · Maps P1–P6 · Audio U1–U4/U6 · Monetization N1/N2/N4/N5 · Spectator C1–C5 · Ops K1–K5) also locked (docs-only until coded).  
+**Analytics:** on (Vercel Pro). **Delivered:** Wave 1–2, Spread A/B/C/F/G, Engineering T1–T8, Juice J1–J8, Micro M1–M8, and all locked code-ownable surfaces O5/O6, R2/R3/R4/R6, S1/S3–S6, B1–B6, A2–A6, D2/D4/D6, P1–P6, U1–U4/U6, N1/N2/N4/N5, C1–C5, K1–K5.
+**Next:** optional polish and user playtest.
 **Working title (CN):** 「方块豆人：塌了就出局」  
 **Working title (EN):** BlockBean Collapse  
 **Target:** Viral CN-community 3D game mashup (Douyin / Bilibili clip-first)  
@@ -210,8 +211,8 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 | **O2** | Practice island / safe first round | 首局或练习岛无致死塌/推压力（或大幅减弱）；可正常学走/跳/推；结束后可进正式局 |
 | **O3** | Start gated until load ready + visible progress | Start 在资源就绪前禁用；可见进度（条/%/文案）；就绪后可点；与 M6 对齐不冲突 |
 | **O4** | Contextual tip on first out / first win (once) | 首次出局、首次胜利各出一次情境 tip（CN）；之后不再打扰 |
-| **O5** | Skip + never-show-again persisted | Tip/引导可 Skip；「不再显示」写入 localStorage；刷新后仍跳过 |
-| **O6** | Ghost demo bean for 5s if idle on title | 标题页闲置 ~5s 出现 ghost demo 豆演示走/推/塌；可打断；不挡 Start |
+| **O5** | Skip + never-show-again persisted | ✅ |
+| **O6** | Ghost demo bean for 5s if idle on title | ✅ |
 
 **Explicitly NOT in this lock:** O1.
 
@@ -223,10 +224,10 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 | ID | Item | Codex acceptance（摘要） |
 |----|------|--------------------------|
-| **R2** | Win / play streak counter (localStorage) | 显示连胜 / 连玩计数；localStorage 持久；败局重置连胜（连玩规则文档化） |
-| **R3** | Soft return reward copy after N days away | 离开 ≥N 天后回访显示柔和回归文案（无付费墙）；N 可配；仅文案/轻反馈 |
-| **R4** | Personal best board (pushes, survival time) | 本地个人最佳：推人数、存活时长等；结果页可读；无账号 |
-| **R6** | Yesterday vs today one-line compare on result | 结果页一行「昨日 vs 今日」对比（局数/推分等）；无数据时温和空态 |
+| **R2** | Win / play streak counter (localStorage) | ✅ |
+| **R3** | Soft return reward copy after N days away | ✅ |
+| **R4** | Personal best board (pushes, survival time) | ✅ |
+| **R6** | Yesterday vs today one-line compare on result | ✅ |
 
 **Explicitly NOT in this lock:** R1 · R5.
 
@@ -238,11 +239,11 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 | ID | Item | Codex acceptance（摘要） |
 |----|------|--------------------------|
-| **S1** | Result share card (canvas/PNG) | 结果可导出 canvas/PNG 分享卡：分数 + hook 文案；可下载/复制；含 play 暗示 |
-| **S3** | Auto last-10s buffer for out / win | 出局/胜利时客户端保留近 ~10s 缓冲（仅本地）；可触发回看/导出钩子；无服务端 |
-| **S4** | Spectate watermark / handle field | 观战/切片带水印或可填 handle 字段；默认不挡操作；可关 |
-| **S5** | Opening 3s hook freeze-frame | 录屏/开场用 3s hook 定格帧（塌或推）；与 Spread A 可叠加不冲突 |
-| **S6** | Defeat / clutch title variants | 分享文案有失败 / clutch 标题变体；随机或情境选；CN 可读 |
+| **S1** | Result share card (canvas/PNG) | ✅ |
+| **S3** | Auto last-10s buffer for out / win | ✅ |
+| **S4** | Spectate watermark / handle field | ✅ |
+| **S5** | Opening 3s hook freeze-frame | ✅ |
+| **S6** | Defeat / clutch title variants | ✅ |
 
 **Explicitly NOT in this lock:** S2.
 
@@ -254,12 +255,12 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 | ID | Item | Codex acceptance（摘要） |
 |----|------|--------------------------|
-| **B1** | Push force + cooldown table | easy / default / spicy 三档推力+冷却表；可切换或调试；手感可感知差异 |
-| **B2** | Collapse pace curve presets | 塌格节奏预设（如 slow-rush / steady）；可切换；与 M3 对齐 |
-| **B3** | AI difficulty tiers | AI 难度分档（躲预警/推边缘等）；可切换；4–8 局仍可玩 |
-| **B4** | Bot count + spawn spread knobs | bot 数与 spawn 分散旋钮；开局不挤；与 M4 对齐 |
-| **B5** | Round length target band | 目标局长区间可配（如 25–35s / 15–60s）；与 Spread B 不冲突 |
-| **B6** | Exposed BALANCE constants block | 集中 `BALANCE`（或等价）常量块；改一处可调上述旋钮；有简短注释 |
+| **B1** | Push force + cooldown table | ✅ |
+| **B2** | Collapse pace curve presets | ✅ |
+| **B3** | AI difficulty tiers | ✅ |
+| **B4** | Bot count + spawn spread knobs | ✅ |
+| **B5** | Round length target band | ✅ |
+| **B6** | Exposed BALANCE constants block | ✅ |
 
 **Scheduling:** 可与 Wave 1 / Micro **并行**；勿挡手感主验收。
 
@@ -269,11 +270,11 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 | ID | Item | Codex acceptance（摘要） |
 |----|------|--------------------------|
-| **A2** | Colorblind-safe warn / out / win palette | 预警/出局/胜利色对色盲友好（不只靠红绿）；对照可测 |
-| **A3** | Captions / icon for critical SFX | 关键 SFX（塌预警、出局、胜利）有字幕或图标；可随 mute 仍可读 |
-| **A4** | Remappable keys + touch hit-target size | 键位可重映射；触控热区足够大（移动可读）；桌面默认不受损 |
-| **A5** | HUD scale / contrast presets | HUD 缩放/对比度预设；与 M5 对齐；手机可读 |
-| **A6** | Pause (Esc) + hold-to-confirm quit | Esc 暂停；退出需长按/二次确认；与 T6 对齐不冲突 |
+| **A2** | Colorblind-safe warn / out / win palette | ✅ |
+| **A3** | Captions / icon for critical SFX | ✅ |
+| **A4** | Remappable keys + touch hit-target size | ✅ |
+| **A5** | HUD scale / contrast presets | ✅ |
+| **A6** | Pause (Esc) + hold-to-confirm quit | ✅ |
 
 **Explicitly NOT in this lock:** A1.
 
@@ -285,9 +286,9 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 | ID | Item | Codex acceptance（摘要） |
 |----|------|--------------------------|
-| **D2** | No-push — survival only | 无推模式：仅走跳求生；推输入无效或隐藏；仍能决出最后一豆 |
-| **D4** | Hazard rain — periodic spike drops | 周期性尖刺/危险物落下；可躲；不永久堵死核心岛 |
-| **D6** | Ghost trail — rivals leave short path ghosts | 对手留下短路径残影；可辨方向；残影不挡物理 |
+| **D2** | No-push — survival only | ✅ |
+| **D4** | Hazard rain — periodic spike drops | ✅ |
+| **D6** | Ghost trail — rivals leave short path ghosts | ✅ |
 
 **Explicitly NOT in this lock:** D1 · D3 · D5.
 
@@ -299,12 +300,12 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 | ID | Item | Codex acceptance（摘要） |
 |----|------|--------------------------|
-| **P1** | Layout pool of 3 authored grids | ≥3 套作者网格布局可轮换/抽取；塌规则仍成立 |
-| **P2** | Theme pack A — grass / dirt | 草地/泥土主题贴图或材质包可套用；不压既有 GLB |
-| **P3** | Theme pack B — ice / slippery | 冰面/打滑主题；移动有可感知滑动；仍可控 |
-| **P4** | Theme pack C — night neon | 夜霓虹主题；预警/HUD 仍可读 |
-| **P5** | Center pit / ring variants | 中心坑 / 环状变体布局；仍能决出最后一豆 |
-| **P6** | Map pick screen (local; random default) | 本地选图屏；默认随机；无网也可 |
+| **P1** | Layout pool of 3 authored grids | ✅ |
+| **P2** | Theme pack A — grass / dirt | ✅ |
+| **P3** | Theme pack B — ice / slippery | ✅ |
+| **P4** | Theme pack C — night neon | ✅ |
+| **P5** | Center pit / ring variants | ✅ |
+| **P6** | Map pick screen (local; random default) | ✅ |
 
 **Note:** Tripo 主题 mesh **须先估积分再生成**（>200 须用户确认）。Codex 只接线，不作者 3D。
 
@@ -316,11 +317,11 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 | ID | Item | Codex acceptance（摘要） |
 |----|------|--------------------------|
-| **U1** | Layered SFX bus | SFX 分层总线（推/塌/UI 等）；互不糊死；可 mute |
-| **U2** | BGM bed with intensity duck on warn | BGM 底床；预警时强度 duck；可关 |
-| **U3** | Mute / volume persisted | 静音/音量写入 localStorage；与 M8 对齐 |
-| **U4** | Out / win sting one-shots | 出局/胜利独立 sting one-shot；可 mute |
-| **U6** | Spatial-lite pan on left/right pushes | 左/右推有轻量 pan；不明显伤单声道 |
+| **U1** | Layered SFX bus | ✅ |
+| **U2** | BGM bed with intensity duck on warn | ✅ |
+| **U3** | Mute / volume persisted | ✅ |
+| **U4** | Out / win sting one-shots | ✅ |
+| **U6** | Spatial-lite pan on left/right pushes | ✅ |
 
 **Explicitly NOT in this lock:** U5.
 
@@ -332,10 +333,10 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 | ID | Item | Codex acceptance（摘要） |
 |----|------|--------------------------|
-| **N1** | Cosmetic-only skins catalog | 仅外观皮肤目录；不影响手感数值 |
-| **N2** | Free starter + unlock-by-streak skins | 免费起始皮 + 连胜解锁皮；无付费才能玩 |
-| **N4** | Clear ads-never / no-IAP-in-v1 scope | 文档与 UI 范围写明：v1 **无广告、无 IAP** |
-| **N5** | Skin preview on title without purchase flow | 标题页可预览皮肤；无购买流程/结账 |
+| **N1** | Cosmetic-only skins catalog | ✅ |
+| **N2** | Free starter + unlock-by-streak skins | ✅ |
+| **N4** | Clear ads-never / no-IAP-in-v1 scope | ✅ |
+| **N5** | Skin preview on title without purchase flow | ✅ |
 
 **Explicitly NOT in this lock:** N3.
 
@@ -347,11 +348,11 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 | ID | Item | Codex acceptance（摘要） |
 |----|------|--------------------------|
-| **C1** | After out: cycle survivors | 出局后可循环切换存活豆；局继续至真正胜者 |
-| **C2** | Spec HUD: alive count + next collapse tip | 观战 HUD：存活数 + 下一塌提示；不挡视线 |
-| **C3** | Soft follow cam + optional free look | 柔和跟随相机；可选自由看；默认不晕 |
-| **C4** | Caption strip for big moments | 大场面（连推/终局）字幕条；可关 |
-| **C5** | Return-to-lobby without killing round view | 回大厅不强制掐断观战画面（或明确确认）；局逻辑不因误触结束错乱 |
+| **C1** | After out: cycle survivors | ✅ |
+| **C2** | Spec HUD: alive count + next collapse tip | ✅ |
+| **C3** | Soft follow cam + optional free look | ✅ |
+| **C4** | Caption strip for big moments | ✅ |
+| **C5** | Return-to-lobby without killing round view | ✅ |
 
 **Scheduling:** 与 Wave 2 #10 **对齐/扩展**；可并行；勿挡手感。
 
@@ -361,11 +362,11 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 | ID | Item | Codex acceptance（摘要） |
 |----|------|--------------------------|
-| **K1** | Version / build banner | 可见版本/build 横幅或角标（dev/prod 可读） |
-| **K2** | Remote JSON flags with local fallback | 远程 JSON 开关；失败回落本地默认；不堵开局 |
-| **K3** | Soft maintenance message screen | 软维护提示屏（文案+可返回）；非硬杀进程 |
-| **K4** | Client error beacon analytics doc link | 客户端错误 beacon + 分析文档链接；无 PII |
-| **K5** | Kill-switch to force box fallback assets | 开关强制方块 fallback（跳过 GLB）；仍可玩一局 |
+| **K1** | Version / build banner | ✅ |
+| **K2** | Remote JSON flags with local fallback | ✅ |
+| **K3** | Soft maintenance message screen | ✅ |
+| **K4** | Client error beacon analytics doc link | ✅ |
+| **K5** | Kill-switch to force box fallback assets | ✅ |
 
 **Scheduling:** 可与 Engineering T3/T4 **并行**；勿挡 Wave 1–2 手感。
 
@@ -512,99 +513,99 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 - [x] O2 Practice island / safe first round  
 - [x] O3 Start gated until load ready + visible progress  
 - [x] O4 Contextual tip on first out / first win (once)  
-- [ ] O5 Skip + never-show-again persisted  
-- [ ] O6 Ghost demo bean for 5s if idle on title  
+- [x] O5 Skip + never-show-again persisted
+- [x] O6 Ghost demo bean for 5s if idle on title
 
 **Not this lock:** O1
 
 ### Retention（open — R2, R3, R4, R6；NOT R1, R5）
 
-- [ ] R2 Win / play streak counter  
-- [ ] R3 Soft return reward copy  
-- [ ] R4 Personal best board  
-- [ ] R6 Yesterday vs today compare  
+- [x] R2 Win / play streak counter
+- [x] R3 Soft return reward copy
+- [x] R4 Personal best board
+- [x] R6 Yesterday vs today compare
 
 **Not this lock:** R1 · R5
 
 ### Social clip（open — S1, S3–S6；NOT S2）
 
-- [ ] S1 Result share card  
-- [ ] S3 Auto last-10s buffer  
-- [ ] S4 Spectate watermark / handle  
-- [ ] S5 Opening 3s hook freeze-frame  
-- [ ] S6 Defeat / clutch title variants  
+- [x] S1 Result share card
+- [x] S3 Auto last-10s buffer
+- [x] S4 Spectate watermark / handle
+- [x] S5 Opening 3s hook freeze-frame
+- [x] S6 Defeat / clutch title variants
 
 **Not this lock:** S2
 
 ### Balance（open — B1–B6）
 
-- [ ] B1 Push force + cooldown table  
-- [ ] B2 Collapse pace curve presets  
-- [ ] B3 AI difficulty tiers  
-- [ ] B4 Bot count + spawn spread knobs  
-- [ ] B5 Round length target band  
-- [ ] B6 Exposed BALANCE constants  
+- [x] B1 Push force + cooldown table
+- [x] B2 Collapse pace curve presets
+- [x] B3 AI difficulty tiers
+- [x] B4 Bot count + spawn spread knobs
+- [x] B5 Round length target band
+- [x] B6 Exposed BALANCE constants
 
 ### Accessibility（open — A2–A6；NOT A1）
 
-- [ ] A2 Colorblind-safe palette  
-- [ ] A3 Captions / icon for critical SFX  
-- [ ] A4 Remappable keys + touch hit-targets  
-- [ ] A5 HUD scale / contrast presets  
-- [ ] A6 Pause + hold-to-confirm quit  
+- [x] A2 Colorblind-safe palette
+- [x] A3 Captions / icon for critical SFX
+- [x] A4 Remappable keys + touch hit-targets
+- [x] A5 HUD scale / contrast presets
+- [x] A6 Pause + hold-to-confirm quit
 
 **Not this lock:** A1
 
 ### Modes（open — D2, D4, D6；NOT D1, D3, D5）
 
-- [ ] D2 No-push  
-- [ ] D4 Hazard rain  
-- [ ] D6 Ghost trail  
+- [x] D2 No-push
+- [x] D4 Hazard rain
+- [x] D6 Ghost trail
 
 **Not this lock:** D1 · D3 · D5
 
 ### Maps（open — P1–P6）
 
-- [ ] P1 Layout pool of 3 authored grids  
-- [ ] P2 Theme pack A — grass / dirt  
-- [ ] P3 Theme pack B — ice / slippery  
-- [ ] P4 Theme pack C — night neon  
-- [ ] P5 Center pit / ring variants  
-- [ ] P6 Map pick screen  
+- [x] P1 Layout pool of 3 authored grids
+- [x] P2 Theme pack A — grass / dirt
+- [x] P3 Theme pack B — ice / slippery
+- [x] P4 Theme pack C — night neon
+- [x] P5 Center pit / ring variants
+- [x] P6 Map pick screen
 
 ### Audio（open — U1–U4, U6；NOT U5）
 
-- [ ] U1 Layered SFX bus  
-- [ ] U2 BGM bed + intensity duck  
-- [ ] U3 Mute / volume persisted  
-- [ ] U4 Out / win sting one-shots  
-- [ ] U6 Spatial-lite pan  
+- [x] U1 Layered SFX bus
+- [x] U2 BGM bed + intensity duck
+- [x] U3 Mute / volume persisted
+- [x] U4 Out / win sting one-shots
+- [x] U6 Spatial-lite pan
 
 **Not this lock:** U5
 
 ### Monetization（open — N1, N2, N4, N5；NOT N3；never gate core loop）
 
-- [ ] N1 Cosmetic-only skins catalog  
-- [ ] N2 Free starter + unlock-by-streak  
-- [ ] N4 Ads-never / no-IAP-in-v1 scope line  
-- [ ] N5 Skin preview on title  
+- [x] N1 Cosmetic-only skins catalog
+- [x] N2 Free starter + unlock-by-streak
+- [x] N4 Ads-never / no-IAP-in-v1 scope line
+- [x] N5 Skin preview on title
 
 **Not this lock:** N3
 
 ### Spectator（open — C1–C5）
 
-- [ ] C1 Cycle survivors after out  
-- [ ] C2 Spec HUD  
-- [ ] C3 Soft follow cam + free look  
-- [ ] C4 Caption strip  
-- [ ] C5 Return-to-lobby without killing round view  
+- [x] C1 Cycle survivors after out
+- [x] C2 Spec HUD
+- [x] C3 Soft follow cam + free look
+- [x] C4 Caption strip
+- [x] C5 Return-to-lobby without killing round view
 
 ### Ops（open — K1–K5）
 
-- [ ] K1 Version / build banner  
-- [ ] K2 Remote JSON flags + local fallback  
-- [ ] K3 Soft maintenance message  
-- [ ] K4 Client error beacon + doc link  
-- [ ] K5 Kill-switch box fallback assets  
+- [x] K1 Version / build banner
+- [x] K2 Remote JSON flags + local fallback
+- [x] K3 Soft maintenance message
+- [x] K4 Client error beacon + doc link
+- [x] K5 Kill-switch box fallback assets
 
 **Role split:** PRD / 部署 docs = 本 bot · Wave 1–2 + Spread + Engineering + Juice + Micro + Game surfaces 代码 = Codex / cloud agent · 3D = Tripo · 迭代修 bug = 用户 Codex。
