@@ -6,6 +6,7 @@ const __va = (name, data = {}) => {
   try { window.va && window.va('event', { name, data }); } catch (_) {}
 };
 const $ = id => document.getElementById(id);
+addEventListener('error', e => __va('client_error', { message: String(e.message || 'error').slice(0, 120) }));
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
 renderer.setSize(innerWidth, innerHeight);
