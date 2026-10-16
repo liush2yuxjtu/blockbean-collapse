@@ -2,7 +2,7 @@
 
 **Status:** v0 demo **SHIPPED**: https://blockbean-collapse.vercel.app  
 **Repo:** https://github.com/liush2yuxjtu/blockbean-collapse  
-**Analytics:** on (Vercel Pro). **Next:** Codex implements Wave 1–3 from this PRD.  
+**Analytics:** on (Vercel Pro). **Next:** Wave 1–2 code is implemented; Wave 3 remains Tripo-gated.  
 **Working title (CN):** 「方块豆人：塌了就出局」  
 **Working title (EN):** BlockBean Collapse  
 **Target:** Viral CN-community 3D game mashup (Douyin / Bilibili clip-first)  
@@ -194,18 +194,18 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 ### Wave 1（open）
 
-- [ ] Edge AABB + coyote + jump buffer 可测通过  
-- [ ] Push VFX + cam punch + warn glow + out feedback  
-- [ ] AI 躲预警格 / 尖刺箱 / 会边缘推  
-- [ ] Sudden-death 2×2  
-- [ ] 结果 / 分享屏  
+- [x] Edge AABB + coyote + jump buffer 可测通过  
+- [x] Push VFX + cam punch + warn glow + out feedback  
+- [x] AI 躲预警格 / 尖刺箱 / 会边缘推  
+- [x] Sudden-death 2×2  
+- [x] 结果 / 分享屏  
 
 ### Wave 2（open）
 
-- [ ] InstancedMesh 64 tiles（低端机更稳）  
-- [ ] Mobile touch 可完成一局  
-- [ ] SFX / BGM 塌与推可闻  
-- [ ] 出局后可观战切换  
+- [x] InstancedMesh 64 tiles（低端机更稳）  
+- [x] Mobile touch 可完成一局  
+- [x] SFX / BGM 塌与推可闻  
+- [x] 出局后可观战切换  
 
 ### Wave 3（open）
 
