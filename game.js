@@ -34,13 +34,13 @@ const manager = new THREE.LoadingManager();
 manager.onProgress = (_url, loaded, total) => {
   const pct = total ? Math.round(100 * loaded / total) : 0;
   if ($('loadbar')) $('loadbar').style.width = pct + '%';
-  if ($('load')) $('load').textContent = \`加载模型中… \${pct}% (\${loaded}/\${total})\`;
+  if ($('load')) $('load').textContent = `加载模型中… ${pct}% (${loaded}/${total})`;
 };
 manager.onError = url => console.warn('Load error', url);
 const loader = new GLTFLoader(manager);
-const loadAsset = name => loader.loadAsync(\`assets/\${name}/model.glb\`)
+const loadAsset = name => loader.loadAsync(`assets/${name}/model.glb`)
   .then(g => { A[name] = g.scene; })
-  .catch(err => console.warn(\`GLB fail: \${name}\`, err));
+  .catch(err => console.warn(`GLB fail: ${name}`, err));
 
 await Promise.all(['hero', 'rival', 'spikebox'].map(loadAsset));
 if ($('loadbar')) $('loadbar').style.width = '100%';
@@ -240,7 +240,7 @@ function reset() {
     const b = {
       m, p: new THREE.Vector3(Math.cos(angle) * 5, 3, Math.sin(angle) * 5),
       v: new THREE.Vector3(), ai: k > 0, alive: true, ground: false, cd: 0,
-      coyote: 0, jumpBuffer: 0, target: null, targetT: 0, name: k ? \`Bot\${k}\` : '你',
+      coyote: 0, jumpBuffer: 0, target: null, targetT: 0, name: k ? `Bot${k}` : '你',
       told: false, hazardCd: 0
     };
     m.position.copy(b.p);
@@ -383,7 +383,7 @@ function physics(b, dt) {
       playSfx('out');
       __va('player_eliminated', { survival_s: Math.round((performance.now() - roundStart) / 1000), cause: 'fell' });
     } else {
-      flash(\`\${b.name} 出局！\`, 0.8);
+      flash(`${b.name} 出局！`, 0.8);
     }
   }
   b.m.position.copy(b.p);
@@ -400,8 +400,8 @@ function endRound() {
   flash(won ? '🏆 你赢了！' : '你出局了！', 999);
   if ($('result')) {
     $('resultTitle').textContent = won ? '🏆 你赢了！' : '你出局了！';
-    $('resultDetail').textContent = \`获胜者：\${winner} · 推人分：\${meScore} · 存活：\${alive.length}/\${beans.length}\`;
-    $('shareText').value = \`我在《方块豆人：塌了就出局》拿了 \${meScore} 推人分，\${won ? '最后一豆称王！' : '差一点就赢了！'} \${PLAY_URL}\`;
+    $('resultDetail').textContent = `获胜者：${winner} · 推人分：${meScore} · 存活：${alive.length}/${beans.length}`;
+    $('shareText').value = `我在《方块豆人：塌了就出局》拿了 ${meScore} 推人分，${won ? '最后一豆称王！' : '差一点就赢了！'} ${PLAY_URL}`;
     $('result').hidden = false;
   }
   __va('round_end', { result: won ? 'win' : 'lose', winner, push_score: meScore, alive: alive.length });
@@ -411,7 +411,7 @@ function cycleSpectator() {
   if (!live.length) return;
   followIndex = (followIndex + 1) % live.length;
   const target = live[followIndex];
-  if ($('spectateLabel')) $('spectateLabel').textContent = \`观战：\${target.name}\`;
+  if ($('spectateLabel')) $('spectateLabel').textContent = `观战：${target.name}`;
   __va('spectate_switch', { target: target.name });
 }
 function bindTouch() {
@@ -428,7 +428,7 @@ function bindTouch() {
     const x = Math.max(-1, Math.min(1, dx / max));
     const z = Math.max(-1, Math.min(1, dz / max));
     touch.x = x; touch.z = z;
-    knob.style.transform = \`translate(\${x * max}px,\${z * max}px)\`;
+    knob.style.transform = `translate(${x * max}px,${z * max}px)`;
   };
   const end = () => { active = false; touch.x = touch.z = 0; knob.style.transform = 'translate(0,0)'; };
   zone.addEventListener('pointerdown', e => { active = true; zone.setPointerCapture(e.pointerId); move(e); });
@@ -566,8 +566,8 @@ function loop() {
   cam.lookAt(focus.x, focus.y, focus.z);
   cameraPunch = Math.max(0, cameraPunch - dt * 1.7);
   if ($('hud')) {
-    const spectateText = spectating && target ? \` · 观战：\${target.name}（Tab/按钮切换）\` : '';
-    $('hud').innerHTML = state === 'menu' ? '' : \`⏱ \${Math.max(0, timer).toFixed(0)}s · 存活 \${live.length}/\${beans.length} · 推人分 \${points['你'] || 0}\${spectateText}<br><small>WASD 移动 · Space 跳 · E 推 · R 重开</small>\`;
+    const spectateText = spectating && target ? ` · 观战：${target.name}（Tab/按钮切换）` : '';
+    $('hud').innerHTML = state === 'menu' ? '' : `⏱ ${Math.max(0, timer).toFixed(0)}s · 存活 ${live.length}/${beans.length} · 推人分 ${points['你'] || 0}${spectateText}<br><small>WASD 移动 · Space 跳 · E 推 · R 重开</small>`;
   }
   renderer.render(scene, cam);
 }
