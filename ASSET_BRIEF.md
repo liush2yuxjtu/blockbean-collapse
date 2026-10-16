@@ -7,7 +7,7 @@
 
 ---
 
-## Asset count: **4**
+## Asset count: **8** (Wave 1: 4 · Wave 3: +4)
 
 | # | Filename stem | Role | Est. Tripo points (rough) |
 |---|---------------|------|---------------------------|
@@ -165,3 +165,22 @@ For each of the 4 assets, prepare before Tripo:
 | **>200** | **Hard confirm with user before any Tripo call** |
 
 Current rough total for 4 assets: **~90–150 points**.
+
+
+---
+
+## Wave 3 — Theme tiles + mint unlock skin (shipped 2026-10-17 CST)
+
+**Status:** Generated via Tripo `text_to_model` · model `v2.5-20250123` · texture+pbr · face_limit ~20000  
+**PRD locks:** Maps **P2** grass/dirt · **P3** ice/slippery · **P4** night neon · Monetization **N2** streak-unlock skin  
+**Credits this batch:** **80** (20×4) · balance after **660** (was ~740) · under the ≤200 gate  
+**game.js:** **not wired yet** (Codex later) — assets only.
+
+| # | Repo path | Role | Tripo task id | Credits |
+|---|-----------|------|---------------|---------|
+| 5 | `assets/tile_grass/model.glb` | P2 theme arena tile (grass green top / dirt brown sides) | `eb85b116-fba8-43cb-a532-05c6475b4564` | 20 |
+| 6 | `assets/tile_ice/model.glb` | P3 theme arena tile (icy blue/white) | `82eb6047-f8d0-426e-80d7-5fc4a77d79ea` | 20 |
+| 7 | `assets/tile_neon/model.glb` | P4 theme arena tile (dark purple + cyan/magenta neon edges) | `86bb5041-aca5-474c-a447-54939b2cd49b` | 20 |
+| 8 | `assets/skin_mint/model.glb` | N2 mint unlock skin T-pose (mint torso + cream limbs) | `52f65497-993c-49d1-a277-65326d2c8a36` | 20 |
+
+Each folder also has `preview.png`. Gallery master copies + raws live under `/workspace/gallery/tripo/blockbean-collapse/assets/`.
