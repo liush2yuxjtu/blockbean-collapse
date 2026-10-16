@@ -9,6 +9,10 @@ test('loads, starts, eliminates beans, and shows the result screen', async ({ pa
   await expect(page.locator('body')).toBeVisible();
 
   const start = page.locator('#start');
+  const progress = page.locator('#loadbar');
+  await expect(start).toBeDisabled();
+  await expect(progress).toHaveAttribute('role', 'progressbar');
+  await expect(progress).toHaveAttribute('aria-valuenow', /^\d+$/);
   const fallback = page.locator('#fallback, [data-fallback]').first();
   await expect.poll(async () => {
     const ready = await start.isEnabled().catch(() => false);
