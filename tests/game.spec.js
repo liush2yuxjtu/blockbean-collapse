@@ -87,7 +87,11 @@ test('loads, starts, eliminates beans, and shows the result screen', async ({ pa
     for (const bean of game.beans) {
       const isPlayer = bean.name === '你';
       bean.alive = isPlayer;
-      if (!isPlayer) {
+      if (isPlayer) {
+        bean.p.y = 0;
+        bean.v.set(0, 0, 0);
+        bean.ground = true;
+      } else {
         bean.p.y = -20;
         bean.v.y = -1;
       }
