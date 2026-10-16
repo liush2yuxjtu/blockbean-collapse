@@ -196,7 +196,7 @@ Aligns with / expands Wave 1 #2. Respect T6 reduce motion.
 | ID | Item | Status | Acceptance |
 |----|------|--------|------------|
 | **O2** | Practice island / safe first round | ✅ | First round or practice island: no lethal collapse/push pressure (or heavily softened); player can learn move/jump/push; then enter real round |
-| **O3** | Start gated until load ready + visible progress | ☐ | Start disabled until assets ready; visible progress (bar/%/copy); enabled after; aligns with M6 |
+| **O3** | Start gated until load ready + visible progress | ✅ | Start disabled until assets ready; visible progress (bar/%/copy); enabled after; aligns with M6 |
 | **O4** | Contextual tip on first out / first win (once) | ☐ | Tip once on first out and once on first win (CN); never repeats after |
 | **O5** | Skip + never-show-again persisted | ☐ | Tips/onboarding skippable; “never show again” in localStorage; survives refresh |
 | **O6** | Ghost demo bean for 5s if idle on title | ☐ | After ~5s idle on title, ghost demo bean shows move/push/collapse; interruptible; does not block Start |
