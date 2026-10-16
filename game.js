@@ -101,7 +101,7 @@ const loader = new GLTFLoader(manager);
 const loadAsset = name => flags.forceFallbackAssets ? Promise.resolve(null) : loader.loadAsync('assets/' + name + '/model.glb')
   .then(g => { A[name] = g.scene; return g.scene; })
   .catch(err => { console.warn('GLB fail: ' + name, err); __va('asset_error', { asset: name }); return null; });
-await Promise.all(['hero', 'spikebox'].map(loadAsset));
+await Promise.all(['hero', 'tile', 'spikebox'].map(loadAsset));
 if ($('loadbar')) {
   $('loadbar').style.width = '100%';
   $('loadbar').setAttribute('aria-valuenow', '100');
@@ -114,11 +114,39 @@ const T = 2;
 const GRID = 8;
 const TILE_H = 0.6;
 const TILE_TOP = 0;
-const tileGeometry = new THREE.BoxGeometry(T * 0.96, TILE_H, T * 0.96);
-const tileMaterial = new THREE.MeshStandardMaterial({
-  color: 0x6bbf3b, roughness: 0.82, metalness: 0.02,
-  emissive: 0x000000, emissiveIntensity: 0
-});
+function tileMeshParts() {
+  const source = A.tile?.getObjectByProperty('isMesh', true);
+  if (!source?.geometry) {
+    return {
+      geometry: new THREE.BoxGeometry(T * 0.96, TILE_H, T * 0.96),
+      material: new THREE.MeshStandardMaterial({
+        color: 0x6bbf3b, roughness: 0.82, metalness: 0.02,
+        emissive: 0x000000, emissiveIntensity: 0,
+        vertexColors: true
+      })
+    };
+  }
+  const geometry = source.geometry.clone();
+  geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox;
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3());
+  geometry.translate(-center.x, -center.y, -center.z);
+  geometry.scale(
+    size.x ? (T * 0.96) / size.x : 1,
+    size.y ? TILE_H / size.y : 1,
+    size.z ? (T * 0.96) / size.z : 1
+  );
+  const material = Array.isArray(source.material)
+    ? source.material[0].clone()
+    : source.material.clone();
+  material.vertexColors = true;
+  return { geometry, material };
+}
+const { geometry: tileGeometry, material: tileMaterial } = tileMeshParts();
+tileMaterial.color ||= new THREE.Color(0x6bbf3b);
+tileMaterial.roughness = tileMaterial.roughness ?? 0.82;
+tileMaterial.metalness = tileMaterial.metalness ?? 0.02;
 const tileMesh = new THREE.InstancedMesh(tileGeometry, tileMaterial, GRID * GRID);
 tileMesh.castShadow = true;
 tileMesh.receiveShadow = true;
