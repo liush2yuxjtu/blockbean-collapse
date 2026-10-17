@@ -4,3 +4,5 @@ node_modules
 .DS_Store
 *.log
 verify-*.png
+playwright-report/
+test-results/
