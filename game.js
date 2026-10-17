@@ -270,6 +270,7 @@ let spike = null;
 let timer = 30;
 let state = 'menu';
 let countdown = 3;
+let countDeadline = 0;
 let points = {};
 let roundStart = 0;
 let msgT = 0;
@@ -526,6 +527,7 @@ function reset() {
   scene.add(sm);
   timer = roundSeconds;
   countdown = 3;
+  countDeadline = performance.now() + 3000;
   state = 'count';
   paused = false;
   spectating = false;
@@ -954,12 +956,13 @@ function loop() {
   const dt = frameDt * (slowMo > 0 ? 0.35 : 1);
   if (msgT > 0) { msgT -= dt; if (msgT <= 0 && state !== 'over' && $('msg')) $('msg').textContent = ''; }
   if (state === 'count') {
-    countdown -= dt;
+    // Wall-clock countdown so main-thread GLB parse stalls don't stretch the 3s gate.
+    countdown = Math.max(0, (countDeadline - performance.now()) / 1000);
     if ($('msg')) $('msg').textContent = countdown > 0 ? Math.ceil(countdown) : 'GO!';
     beans.forEach(b => physics(b, dt));
     // Resolve deterministic test/debug falls during the countdown as well as during play.
     if (beans.length && beans.filter(b => b.alive).length <= 1) endRound();
-    if (countdown <= 0) {
+    if (countdown <= 0 && state === 'count') {
       state = 'play';
       roundStart = performance.now();
       flash('GO!', 0.5);

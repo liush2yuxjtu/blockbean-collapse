@@ -30,4 +30,13 @@ if [[ -n "${VERIFY_URL:-}" ]]; then
   curl --fail --silent --show-error --location --max-time 30 --output /dev/null --write-out "HTTP %{http_code}\n" "${VERIFY_URL}"
 fi
 
+# Standalone PRD demo pages: PRD_DEMOS="url|checks.mjs|outdir;..."
+IFS=';' read -ra demos <<< "${PRD_DEMOS:-}"
+for d in "${demos[@]}"; do
+  [[ -z "$d" ]] && continue
+  IFS='|' read -r url checks out <<< "$d"
+  echo "[verify] PRD demo: ${url}"
+  node scripts/verify-prd-demo.mjs --url "$url" --checks "$checks" --out "${out:-verify-out}"
+done
+
 echo "[verify] passed"

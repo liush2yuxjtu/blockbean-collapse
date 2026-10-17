@@ -53,3 +53,7 @@ Wave 3: `assets/tile_grass` · `tile_ice` · `tile_neon` · `skin_mint` — Trip
 
 静态站，Vercel 生产域名：https://blockbean-collapse.vercel.app  
 仓库 → Vercel 项目 `blockbean-collapse`，`main` 分支自动部署。
+
+## Verify (local CI)
+
+There is no GitHub Actions CI. Run `npm run verify` before every push/merge; procedure in [.agents/skills/verify/SKILL.md](.agents/skills/verify/SKILL.md) (includes standalone PRD demo verification via `scripts/verify-prd-demo.mjs`).
