@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Run the BlockBean Collapse verification workflow after code changes or before merging. Use for this repository when CI is disabled, when validating game.js and modules, when checking the Playwright regression locally, or when smoke testing a Vercel preview/production URL.
+description: Run BlockBean verification after changes, before merging, or for GitHub PR webhook events. Includes local regression, PR merge ancestry, exact-commit Cloudflare Pages previews and playable browser verification.
 ---
 
 # BlockBean Verify
@@ -27,8 +27,33 @@ The verifier performs these checks in order:
 4. Run `npm ci` and `npm test` for the Playwright regression.
 5. If `VERIFY_URL` is set, fetch the URL and require an HTTP 2xx response.
 6. If `PRD_DEMOS` is set (`"url|checks.mjs|outdir;..."`), run `scripts/verify-prd-demo.mjs` per demo (see below).
+7. For a GitHub `pull_request` event, run the `PR Lifecycle / PR Preview` surface in `.agents/skills/verify/surfaces/pr-lifecycle.md`.
 
 This skill IS the CI (the former `.github/workflows/playwright.yml` ran `npm ci`, `npx playwright install --with-deps chromium`, `npm test`; all are steps 4 above). Merge gate: run `npm run verify` locally, it ends with `[verify] passed`, then push/merge.
+
+## PR Lifecycle / PR Preview surface
+
+This is separate from the local game regression. It verifies PR metadata, merge ancestry, immutable preview identity, and a browser smoke test for the deployed game.
+
+```bash
+node scripts/verify-pr-lifecycle.mjs \
+  --event "$GITHUB_EVENT_PATH" \
+  --preview-url "$PREVIEW_URL" \
+  --require-preview true
+
+node scripts/verify-pr-preview.mjs \
+  --url "$PREVIEW_URL" \
+  --pr "$PR_NUMBER" \
+  --head-sha "$PR_HEAD_SHA" \
+  --merge-sha "${PR_MERGE_SHA:-}" \
+  --out "verify-out/pr-${PR_NUMBER}"
+```
+
+The preview is prepared by `scripts/prepare-preview.mjs`, which writes `build-info.json` with the PR number and commit SHA. `scripts/deploy-cloudflare-preview.sh` deploys that directory to Cloudflare Pages through Wrangler. It does not write generated preview files to the PR branch.
+
+`PASS` requires a merged PR, the merge commit in `main`, a reachable preview, matching `build-info.json`, a working Start gate, a live game state of `count` or `play`, and zero page or console errors. `OPEN_PENDING` and `CLOSED_UNMERGED` are lifecycle states. Missing credentials, deployment state, or browser access is `BLOCKED`.
+
+Individual script PASS results are subchecks, not overall PR acceptance. Follow the surface file for the full evidence contract, `DEPLOYMENT.md` for runner prerequisites, and `PR_ROUTINE.md` for the webhook/comment policy.
 
 Example with the Juice demo:
 

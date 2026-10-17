@@ -8,7 +8,11 @@
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "verify": "bash .agents/skills/verify/scripts/verify.sh",
-    "verify:demo": "node scripts/verify-prd-demo.mjs"
+    "verify:demo": "node scripts/verify-prd-demo.mjs",
+    "verify:pr": "node scripts/verify-pr-lifecycle.mjs",
+    "verify:preview": "node scripts/verify-pr-preview.mjs",
+    "prepare:preview": "node scripts/prepare-preview.mjs",
+    "deploy:preview": "bash scripts/deploy-cloudflare-preview.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1"
