@@ -10,9 +10,9 @@ This branch completes the code-ownable PRD backlog across Wave 1–2, Spread A/B
 - Result screen uses rotating CN roast copy, a one-tap clipboard action, URL, local best streak, and best push score.
 - Local two-player split controls: P1 WASD/Space/E/F and P2 arrows/Numpad1/Numpad0.
 - Game code imports modules/arena.js, modules/beans.js, modules/input.js, and modules/ui.js.
-- Playwright regression test and GitHub Actions workflow cover load, start, forced fall, result, and readable WebGL fallback.
+- Playwright regression test and the repository Verify Skill cover load, start, forced fall, result, and readable WebGL fallback; GitHub Actions is intentionally disabled.
 - Runtime fallback catches WebGL construction failure and GLB load errors; box substitutes keep the scene playable when assets are missing.
-- Critical hero/spikebox assets preload; the authored tile GLB parses after the Start gate and then drives the 64-instance arena mesh, while rival remains lazy. Existing GLBs are unchanged.
+- Critical hero/spikebox assets preload; authored grass/ice/neon tile GLBs load after the Start gate and swap the 64-instance arena mesh, while rival remains lazy. Existing GLBs are unchanged.
 - O2 safe first round: the first local round hides the hazard, disables Bot push pressure, and defers tile collapse; completion persists and the next round uses the real rules.
 - O3 loading gate: Start remains disabled until critical assets settle, while the loading bar exposes percentage and progressbar semantics for assistive technologies.
 - O4 contextual tips: the first formal out and first formal win each show a localized tip once, persisted with separate localStorage keys; practice completion does not consume either tip.

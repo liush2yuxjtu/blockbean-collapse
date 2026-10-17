@@ -114,8 +114,10 @@ const T = 2;
 const GRID = 8;
 const TILE_H = 0.6;
 const TILE_TOP = 0;
-function tileMeshParts() {
-  const source = A.tile?.getObjectByProperty('isMesh', true);
+const TILE_ASSETS = { grass: 'tile_grass', ice: 'tile_ice', neon: 'tile_neon' };
+let tileLoadToken = 0;
+function tileMeshParts(assetName = 'tile') {
+  const source = A[assetName]?.getObjectByProperty('isMesh', true);
   if (!source?.geometry) {
     return {
       geometry: new THREE.BoxGeometry(T * 0.96, TILE_H, T * 0.96),
@@ -142,8 +144,8 @@ function tileMeshParts() {
   material.vertexColors = !!geometry.attributes.color;
   return { geometry, material };
 }
-const { geometry: tileGeometry, material: tileMaterial } = tileMeshParts();
-tileMaterial.color ||= new THREE.Color(0x6bbf3b);
+const { geometry: tileGeometry } = tileMeshParts();
+let tileMaterial = new THREE.MeshStandardMaterial({ color: 0x6bbf3b, roughness: 0.82, metalness: 0.02, vertexColors: true });
 tileMaterial.roughness = tileMaterial.roughness ?? 0.82;
 tileMaterial.metalness = tileMaterial.metalness ?? 0.02;
 const tileMesh = new THREE.InstancedMesh(tileGeometry, tileMaterial, GRID * GRID);
@@ -151,6 +153,27 @@ tileMesh.castShadow = true;
 tileMesh.receiveShadow = true;
 tileMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 scene.add(tileMesh);
+function applyTileAsset(assetName) {
+  const replacement = tileMeshParts(assetName);
+  tileMesh.geometry.dispose();
+  tileMesh.material.dispose();
+  tileMesh.geometry = replacement.geometry;
+  tileMaterial = replacement.material;
+  tileMesh.material = tileMaterial;
+  applyTheme(theme);
+  __va('tile_asset_swap', { asset: assetName });
+}
+function loadThemeTile() {
+  const token = ++tileLoadToken;
+  const names = [TILE_ASSETS[theme] || 'tile'];
+  if (names[0] !== 'tile') names.push('tile');
+  const next = index => loadAsset(names[index]).then(() => {
+    if (token !== tileLoadToken) return;
+    if (A[names[index]]) { applyTileAsset(names[index]); return; }
+    if (index + 1 < names.length) next(index + 1);
+  });
+  next(0);
+}
 const tiles = [];
 for (let i = 0; i < GRID; i++) {
   for (let j = 0; j < GRID; j++) {
@@ -866,16 +889,7 @@ $('start')?.addEventListener('click', () => {
   reset();
   if (!A.rival) loadAsset('rival').then(() => { RivalProto = cloneFitted(A.rival, 1.4, 0xff795f); });
 });
-setTimeout(() => {
-  loadAsset('tile').then(() => {
-    if (!A.tile) return;
-    const replacement = tileMeshParts();
-    tileMesh.geometry.dispose();
-    tileMesh.geometry = replacement.geometry;
-    tileMesh.material = replacement.material;
-    applyTheme(theme);
-  });
-}, 0);
+setTimeout(loadThemeTile, 0);
 $('hookSkip')?.addEventListener('click', () => {
   hookSeen = true;
   if ($('hookClip')) $('hookClip').hidden = true;
@@ -904,7 +918,7 @@ $('cardBtn')?.addEventListener('click', downloadShareCard);
 $('clipHandle')?.addEventListener('input', e => { clipHandle = e.target.value; localStorage.setItem('blockbean_handle', clipHandle); });
 $('tipSkip')?.addEventListener('click', () => { if ($('contextTip')) $('contextTip').hidden = true; if ($('tipActions')) $('tipActions').hidden = true; });
 $('tipNever')?.addEventListener('click', () => { tipSuppressed = true; localStorage.setItem('blockbean_tip_never', '1'); if ($('contextTip')) $('contextTip').hidden = true; if ($('tipActions')) $('tipActions').hidden = true; });
-['modeSelect','mapSelect','themeSelect','pushSelect','paceSelect','aiSelect','botSelect','roundSelect','skinSelect','hudSelect','volumeSelect','pushKey'].forEach(id => $(id)?.addEventListener('change', () => { readSettings(); syncSettings(); }));
+['modeSelect','mapSelect','themeSelect','pushSelect','paceSelect','aiSelect','botSelect','roundSelect','skinSelect','hudSelect','volumeSelect','pushKey'].forEach(id => $(id)?.addEventListener('change', () => { readSettings(); syncSettings(); if (id === 'themeSelect') loadThemeTile(); }));
 setTimeout(() => {
   if (state === 'menu' && !$('splash')?.hidden && $('ghostDemo')) { $('ghostDemo').classList.add('show'); ghostDemoShown = true; __va('ghost_demo_show', {}); }
 }, 5000);

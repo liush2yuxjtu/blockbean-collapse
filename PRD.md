@@ -158,7 +158,7 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 | ID | Item | Codex acceptance（摘要） |
 |----|------|--------------------------|
 | **T1** | Split `game.js` modules | 拆成 arena / beans / input / ui（或等价）；行为与 v0 对齐；无 build 或保持静态可跑 |
-| **T2** | Playwright regression CI | CI：load → start → fall/out → result；PR/`main` 可跑；失败阻断合入 |
+| **T2** | Playwright regression Verify Skill | Verify Skill：load → start → fall/out → result；可在 PR/`main` 上手动运行并记录结果 |
 | **T3** | Enrich analytics events | 时长、`push_count` 等；保留现有 Insights / `va`；无 PII |
 | **T4** | Error boundaries | WebGL 失败 / GLB 404 有可读 fallback UI；方块替代仍可用 |
 | **T5** | Asset strategy（不压 GLB） | 禁止压缩/重导出 GLB；critical preload + lazy rival（或等价） |
@@ -478,7 +478,7 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 ### Engineering wave（open — T1–T8）
 
 - [x] T1 Modules split  
-- [x] T2 Playwright CI  
+- [x] T2 Playwright regression via Verify Skill  
 - [x] T3 Enrich analytics  
 - [x] T4 Error boundaries  
 - [x] T5 Asset strategy（no GLB compress）  
