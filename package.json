@@ -7,7 +7,7 @@
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",
-    "verify": "bash scripts/verify.sh",
+    "verify": "bash .agents/skills/verify/scripts/verify.sh",
     "verify:demo": "node scripts/verify-prd-demo.mjs"
   },
   "devDependencies": {

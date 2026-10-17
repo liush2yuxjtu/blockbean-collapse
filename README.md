@@ -56,4 +56,4 @@ Wave 3: `assets/tile_grass` · `tile_ice` · `tile_neon` · `skin_mint` — Trip
 
 ## Verify (local CI)
 
-There is no GitHub Actions CI. Run `npm run verify` before every push/merge; procedure in [skills/verify/SKILL.md](skills/verify/SKILL.md) (includes standalone PRD demo verification via `scripts/verify-prd-demo.mjs`).
+There is no GitHub Actions CI. Run `npm run verify` before every push/merge; procedure in [.agents/skills/verify/SKILL.md](.agents/skills/verify/SKILL.md) (includes standalone PRD demo verification via `scripts/verify-prd-demo.mjs`).

@@ -109,13 +109,13 @@ Spectate switch after elimination (+ optional simple replay later).
 ## Wave 3 — 内容
 
 ### 9. 更多皮肤 / 地图变体（Tripo）
-More skins / map variants (Tripo credits; estimate before generate).
+More skins / map variants (Tripo credits; estimate before generate). Existing grass/ice/neon tile GLBs are now selectable; no new generation was requested.
 
 **Acceptance**
 - [ ] Credit estimate written before generate; if **>200**, user confirmed
-- [ ] New GLBs land in repo `assets/` without compressing existing v0 GLBs
-- [ ] At least one alternate skin or map tile set selectable or swappable in demo
-- [ ] Codex does **not** author 3D — Tripo bot only
+- [x] New GLBs land in repo `assets/` without compressing existing v0 GLBs
+- [x] At least one alternate skin or map tile set selectable or swappable in demo
+- [x] Codex does **not** author 3D — Tripo bot only
 
 ---
 
@@ -143,7 +143,7 @@ More skins / map variants (Tripo credits; estimate before generate).
 | ID | Item | Status | Acceptance |
 |----|------|--------|------------|
 | **T1** | Split `game.js` into modules (arena/beans/input/ui) | ✅ | Modules exist; v0 behavior parity; static serve still works (no mandatory bundler, or documented tiny build) |
-| **T2** | Playwright regression CI (load→start→fall→result) | ✅ | CI runs load → start → fall/out → result; fails block merge on PR/`main` |
+| **T2** | Playwright regression Verify Skill (load→start→fall→result) | ✅ | Verify Skill runs load → start → fall/out → result; records manual evidence for PR/`main` |
 | **T3** | Enrich analytics events (duration, push_count, etc.) | ✅ | Events include duration + push_count (and similar); keep Insights/`va`; no PII |
 | **T4** | Error boundaries (WebGL fail / GLB 404 fallback UI) | ✅ | Readable fallback UI on WebGL fail or GLB 404; box substitutes still playable |
 | **T5** | Asset strategy without compressing GLBs | ✅ | No GLB compress/re-export; critical preload + lazy rival (or equivalent) |

@@ -14,7 +14,7 @@
 
 - `index.html` — splash (keyart), importmap three@0.160.0 (unpkg), loads `game.js`, Vercel Insights `/_vercel/insights`
 - `game.js` — asset loading + `fit()` normalize, `reset()` round setup, `control()` input/AI/push, `physics()` gravity + tile ground + bean separation, `loop()` tiles crack/fall, spikebox, win check, camera, HUD. Debug: `window.__game`
-- `assets/{hero,rival,tile,spikebox}/model.glb` (2–4.5 MB each; tile cloned 64× today — Wave 2 → InstancedMesh)
+- `assets/{hero,rival,tile,spikebox}/model.glb` plus `assets/tile_{grass,ice,neon}/model.glb` (2–4.5 MB each; tile sets are swapped into the InstancedMesh after the Start gate)
 - Docs: `PRD.md` (v1), `TRIAGE_WAVES.md`, `ASSET_BRIEF.md`, `README.md`
 
 ## Codex rules（执行约束）
