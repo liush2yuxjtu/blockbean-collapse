@@ -109,13 +109,13 @@ Spectate switch after elimination (+ optional simple replay later).
 ## Wave 3 — 内容
 
 ### 9. 更多皮肤 / 地图变体（Tripo）
-More skins / map variants (Tripo credits; estimate before generate).
+More skins / map variants (Tripo credits; estimate before generate). Existing grass/ice/neon tile GLBs are now selectable; no new generation was requested.
 
 **Acceptance**
 - [ ] Credit estimate written before generate; if **>200**, user confirmed
-- [ ] New GLBs land in repo `assets/` without compressing existing v0 GLBs
-- [ ] At least one alternate skin or map tile set selectable or swappable in demo
-- [ ] Codex does **not** author 3D — Tripo bot only
+- [x] New GLBs land in repo `assets/` without compressing existing v0 GLBs
+- [x] At least one alternate skin or map tile set selectable or swappable in demo
+- [x] Codex does **not** author 3D — Tripo bot only
 
 ---
 
