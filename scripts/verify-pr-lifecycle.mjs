@@ -58,8 +58,8 @@ async function main() {
     return finish(result, 0);
   }
 
-  if (!merged || !mergeSha) {
-    result.blockers.push('merged PR has no merge_commit_sha');
+  if (state !== 'closed' || !merged || !mergeSha) {
+    result.blockers.push('merged PR requires closed state and merge_commit_sha');
     return finish(result, 3);
   }
 
@@ -99,7 +99,7 @@ function parseArgs(argv) {
     if (!token.startsWith('--')) continue;
     const key = token.slice(2);
     const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
+    if (next !== undefined && !next.startsWith('--')) {
       out[key] = next;
       i += 1;
     } else {
