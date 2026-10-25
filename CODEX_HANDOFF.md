@@ -1,7 +1,17 @@
 # CODEX HANDOFF — BlockBean Collapse (PRD v1)
 
 **Canonical repo:** https://github.com/liush2yuxjtu/blockbean-collapse (`main` → Vercel auto-deploy)  
-**Live:** https://blockbean-collapse.vercel.app  
+**Live:** https://blockbean-collapse.vercel.app
+
+## 2026-10-26 — v1.1.4 training / cam / death telemetry
+
+- **Death:** `roundStart` set in `reset()`; overwritten at GO. Countdown falls → `cause:'fell_count'`, `survival_s:0`. `player_eliminated` adds `had_revive`, `support`, `map`, `practice`.
+- **Spawn:** beans only on `st==='ok'` via `pickSafeTileNear(..., { okOnly:true })`.
+- **Cam:** chase yaw from movement wish; `1-exp(-dt/tau)` with `tau≈0.08–0.11` (reduceMotion 0.05).
+- **Training:** splash 「训练场」 / `?training=1` / `#training`. Solo stable grid, no collapse/spike/bots. F = simulate fall. Esc exits.
+- Banner **1.1.4**. No Tripo spend.
+
+  
 **Gallery mirror (optional):** `/workspace/gallery/tripo/blockbean-collapse/`
 
 > **Start here for what to build:** [PRD.md](./PRD.md) §9 下一波分诊（Wave 1–3 + Spread + Engineering + Juice + Micro + **Game surfaces** O/R/S/B/A/D/P/U/N/C/K）· §10 Scope · §12 Codex 执行说明 · §13 Success  

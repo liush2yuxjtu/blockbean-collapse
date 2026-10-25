@@ -420,6 +420,9 @@ test('death tumble then result; chase cam follows hero yaw', async ({ page }) =>
   await page.evaluate(() => {
     const me = window.__game.beans.find(b => b.name === '你');
     me.m.rotation.y = Math.PI / 2;
+    me.lastWishYaw = Math.PI / 2;
+    me.steerX = 1;
+    me.steerZ = 0;
   });
   await expect.poll(() => page.evaluate(() => {
     const y = window.__game.camChaseYaw;
@@ -428,7 +431,7 @@ test('death tumble then result; chase cam follows hero yaw', async ({ page }) =>
     while (d > Math.PI) d -= Math.PI * 2;
     while (d < -Math.PI) d += Math.PI * 2;
     return Math.abs(d);
-  }), { timeout: 5_000 }).toBeLessThan(0.55);
+  }), { timeout: 3_000 }).toBeLessThan(0.5);
 
   // Walk lean: hold screen-forward (W → +Z at yaw≈0), assert lean + walk clip + limb swing.
   await page.evaluate(() => {
@@ -618,4 +621,154 @@ test('perf telemetry module boots and can classify a frame spike without throwin
   expect(got.spikeProps.clamped_ms).toBe(50);
   expect(got.bootState).toMatch(/count|play/);
   expect(pageErrors.filter(message => /SyntaxError|Unexpected token|perfTelemetry/i.test(message))).toEqual([]);
+});
+
+
+test('training mode: solo stable floor, push/fall QA, telemetry', async ({ page }) => {
+  test.setTimeout(60_000);
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await page.route('**/flags.json', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ maintenance: false, forceFallbackAssets: true }),
+    });
+  });
+  await page.addInitScript(() => {
+    window.__vaEvents = [];
+    const prev = window.va;
+    window.va = function (...args) {
+      if (args[0] === 'event' && args[1]) window.__vaEvents.push(args[1]);
+      return typeof prev === 'function' ? prev.apply(this, args) : undefined;
+    };
+    localStorage.setItem('blockbean_practice_done', '1');
+    localStorage.setItem('blockbean_reduce_motion', '0');
+  });
+  await page.goto('/?training=1', { waitUntil: 'domcontentloaded' });
+  const fallback = page.locator('#fallback, [data-fallback]').first();
+  await expect.poll(async () => {
+    const ready = await page.evaluate(() => Boolean(window.__game?.trainingMode));
+    const unavailable = await fallback.isVisible().catch(() => false);
+    return ready || unavailable;
+  }, { timeout: 30_000 }).toBeTruthy();
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    return;
+  }
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 10_000 })
+    .toMatch(/count|play/);
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 10_000 })
+    .toBe('play');
+  const meta = await page.evaluate(() => ({
+    training: window.__game.trainingMode,
+    beans: window.__game.beans.length,
+    practice: window.__game.practiceRound,
+    gone: window.__game.tiles.filter(t => t.st === 'gone' || t.st === 'fall').length,
+    spike: window.__game.beans && document.querySelector('canvas') ? true : true,
+  }));
+  expect(meta.training).toBe(true);
+  expect(meta.beans).toBe(1);
+  expect(meta.practice).toBe(false);
+  expect(meta.gone).toBe(0);
+
+  await page.evaluate(() => window.__game.trainingForcePush());
+  await expect.poll(() => page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    return me?.m?.userData?.rig?.clip === 'push' || (me?.m?.userData?.rig?.pushT || 0) > 0;
+  }), { timeout: 3_000 }).toBeTruthy();
+
+  await page.evaluate(() => window.__game.trainingSimulateFall());
+  await expect.poll(() => page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    return me?.fallingDeath === true;
+  }), { timeout: 3_000 }).toBeTruthy();
+  // Auto-respawn after tumble — still in training, no result card.
+  await expect.poll(() => page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    return me && me.alive && !me.fallingDeath && me.p.y > -5;
+  }), { timeout: 8_000 }).toBeTruthy();
+  await expect(page.locator('#result')).toBeHidden();
+
+  const events = await page.evaluate(() => window.__vaEvents.map(e => e.name));
+  expect(events).toContain('training_enter');
+  expect(events).toContain('player_eliminated');
+
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});
+
+test('countdown fall reports fell_count survival 0; spawn on ok tiles', async ({ page }) => {
+  test.setTimeout(60_000);
+  const { pageErrors, start, fallback } = await bootGame(page, { practiceDone: true });
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    return;
+  }
+  await start.click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 5_000 })
+    .toMatch(/count|play/);
+  // Force fall during countdown if still counting; otherwise still check spawn safety.
+  await page.evaluate(() => {
+    const g = window.__game;
+    for (const b of g.beans) {
+      const t = g.tiles.find(tile =>
+        Math.abs(tile.x - b.p.x) < 1.1 && Math.abs(tile.z - b.p.z) < 1.1
+      );
+      if (t && t.st === 'gone') throw new Error('spawned on gone tile');
+    }
+    const me = g.beans.find(b => b.name === '你');
+    if (g.state === 'count') {
+      me.p.y = -20;
+      me.v.y = -1;
+    }
+  });
+  // If we fell in count, check telemetry; otherwise skip.
+  await page.waitForTimeout(400);
+  const elim = await page.evaluate(() => {
+    const events = window.__vaEvents || [];
+    return events.filter(e => e.name === 'player_eliminated').map(e => e.data);
+  });
+  if (elim.length) {
+    const last = elim[elim.length - 1];
+    if (last.cause === 'fell_count') {
+      expect(last.survival_s).toBe(0);
+      expect(last).toHaveProperty('support');
+      expect(last).toHaveProperty('had_revive');
+      expect(last).toHaveProperty('map');
+    } else {
+      expect(last).toHaveProperty('cause');
+      expect(last).toHaveProperty('support');
+    }
+  }
+  // Cam wish follow after W — force play + revive so round_end from count fall does not block.
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.state = 'play';
+    g.roundStart = performance.now();
+    const me = g.beans.find(b => b.name === '你');
+    me.alive = true;
+    me.fallingDeath = false;
+    me.fallTumble = 0;
+    me.p.set(0, 1, 0);
+    me.v.set(0, 0, 0);
+    me.m.position.copy(me.p);
+    me.m.rotation.set(0, 0, 0);
+    me.m.visible = true;
+    if (!me.m.parent && g.scene) g.scene.add(me.m);
+    me.steerX = 0;
+    me.steerZ = 1;
+    me.lastWishYaw = 0;
+    me.m.rotation.y = 0;
+    me.ground = true;
+    g.camChaseYaw = Math.PI; // start opposite so follow must settle toward wish≈0
+  });
+  await page.keyboard.down('KeyW');
+  await expect.poll(() => page.evaluate(() => {
+    let y = window.__game.camChaseYaw;
+    while (y > Math.PI) y -= Math.PI * 2;
+    while (y < -Math.PI) y += Math.PI * 2;
+    return Math.abs(y);
+  }), { timeout: 2_500 }).toBeLessThan(0.5);
+  await page.keyboard.up('KeyW');
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
 });
