@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { clamp, tileOverlapsFoot, collapseDelay } from './modules/arena.js';
+import {
+  clamp, tileOverlapsFoot, collapseDelay,
+  tileProvidesWalkSupport, classifySupportLoss, classifyFallKind, pickOkRevivePad,
+  EDGE_COYOTE_S, COLLAPSE_COYOTE_S, COLLAPSE_NUDGE_VY
+} from './modules/arena.js';
 import { createBeanState, humanInputBindings } from './modules/beans.js';
 import { attachBeanRig, updateBeanRig, triggerBeanPush } from './modules/beanRig.js';
 import { createInputState, readPlayerInput } from './modules/input.js';
@@ -9,7 +13,7 @@ import { createPerfTelemetry } from './modules/perfTelemetry.js';
 import { createWebGLRendererWithFallback, probeWebGLContexts, formatRuntimeFallbackReason } from './modules/webglInit.js';
 
 const PLAY_URL = 'https://blockbean-collapse.vercel.app';
-const VERSION = '1.1.4';
+const VERSION = '1.1.5';
 const BALANCE = {
   push: {
     easy: { force: 9, cooldown: 1.05 },
@@ -337,6 +341,8 @@ let lastJuice = { pushAt: 0, pushedAt: 0, warnAt: 0, fallAt: 0, reviveAt: 0, fal
 let camChaseYaw = 0;
 // Fall Guys lean: 1 mid-round scramble revive (race-checkpoint pattern), not infinite.
 let scrambleRevivesLeft = 1;
+/** True after scramble revive was used this round (death telemetry had_revive). */
+let usedScrambleRevive = false;
 let spectating = false;
 let followIndex = 0;
 let muted = localStorage.getItem('blockbean_muted') === '1';
@@ -589,6 +595,7 @@ function reset() {
   else practiceRound = localStorage.getItem('blockbean_practice_done') !== '1';
   // Formal rounds get 1 scramble revive; practice/training already have no lethal collapse.
   scrambleRevivesLeft = (practiceRound || trainingMode) ? 0 : 1;
+  usedScrambleRevive = false;
   slowMo = 0;
   cameraPullback = 0;
   cameraPunch = 0;
@@ -685,10 +692,11 @@ function tileAt(x, z) {
 }
 function supportingTile(b) {
   // Soft ledge cling: slightly larger foot so grazing a tile edge still counts (Fall Guys soft-edge feel).
+  // Ride falling tiles briefly while their top is still near the walk surface (unfair-death fix).
   const half = 0.68;
   let best = null;
   for (const t of tiles) {
-    if (t.st === 'gone' || t.st === 'fall') continue;
+    if (!tileProvidesWalkSupport(t, { tileTop: TILE_TOP, tileH: TILE_H })) continue;
     if (tileOverlapsFoot(b, t, half, T)) {
       const top = t.y + TILE_H / 2;
       if (!best || top > best.top) best = { t, top };
@@ -723,9 +731,11 @@ function pickSafeTileNear(prefer = null, { okOnly = false } = {}) {
   return safe[0];
 }
 function scrambleRevive(b) {
-  const pad = pickSafeTileNear(b.p);
-  if (!pad) return false;
+  // Always land on ok tiles — never crack that can fall seconds later.
+  const pad = pickOkRevivePad(tiles, b.p) || pickSafeTileNear(b.p, { okOnly: true });
+  if (!pad || pad.st !== 'ok') return false;
   scrambleRevivesLeft = Math.max(0, scrambleRevivesLeft - 1);
+  usedScrambleRevive = true;
   b.alive = true;
   b.told = false;
   b.p.set(pad.x, TILE_TOP + 0.15, pad.z);
@@ -925,8 +935,11 @@ function physics(b, dt) {
   b.p.addScaledVector(b.v, dt);
   const support = b.v.y <= 0 ? supportingTile(b) : null;
   b.ground = false;
-  if (support?.t) b.lastSupportSt = support.t.st;
-  else if (!support) b.lastSupportSt = 'none';
+  if (support?.t) {
+    // Keep last real surface (ok|crack) for death telemetry — do not overwrite with fall/none mid-ride.
+    if (support.t.st === 'ok' || support.t.st === 'crack') b.lastSupportSt = support.t.st;
+    b.lastSupportTile = support.t;
+  }
   if (support && b.v.y <= 0 && previousY >= support.top - 0.05 && b.p.y <= support.top) {
     b.p.y = support.top;
     b.v.y = Math.max(0, b.v.y);
@@ -937,8 +950,18 @@ function physics(b, dt) {
       setTimeout(() => b.alive && b.m.scale.set(1, 1, 1), 120);
     }
   }
-  // Longer coyote + soft ledge (supportingTile half) soften one-mistake deaths (Fall Guys fair-fail pillar).
-  if (wasGround && !b.ground) b.coyote = 0.22;
+  // Collapse gets a longer coyote + nudge; walk-off keeps the short edge coyote.
+  if (wasGround && !b.ground) {
+    const loss = classifySupportLoss(b.lastSupportTile);
+    b.supportLossKind = loss;
+    if (loss === 'collapse') {
+      b.coyote = COLLAPSE_COYOTE_S;
+      b.v.y = Math.max(b.v.y, COLLAPSE_NUDGE_VY);
+    } else {
+      b.coyote = EDGE_COYOTE_S;
+    }
+    if (!b.lastSupportTile) b.lastSupportSt = 'none';
+  }
   if (b.p.y < -15 && !b.fallingDeath) {
     const canRevive = !b.ai && !practiceRound && scrambleRevivesLeft > 0 && state === 'play' && !roundEndFired;
     if (canRevive && scrambleRevive(b)) {
@@ -975,7 +998,13 @@ function beginFallDeath(b) {
     const inCount = state === 'count';
     const cause = inCount ? 'fell_count' : 'fell';
     const support = (b.lastSupportSt === 'crack') ? 'crack' : (b.lastSupportSt === 'ok' ? 'ok' : 'none');
-    const deathMsg = (support === 'crack' || support === 'none')
+    const fall_kind = classifyFallKind({
+      inCount,
+      supportLossKind: b.supportLossKind || (support === 'crack' || support === 'none' ? 'collapse' : 'air')
+    });
+    const tileTopNow = b.lastSupportTile ? (b.lastSupportTile.y + TILE_H / 2) : null;
+    const support_drop = tileTopNow == null ? undefined : Math.round((TILE_TOP - tileTopNow) * 100) / 100;
+    const deathMsg = (fall_kind === 'collapse' || support === 'crack' || support === 'none')
       ? (language === 'zh' ? '脚下塌了' : 'Floor gave way')
       : (language === 'zh' ? '掉下去了…' : 'Falling…');
     flash(deathMsg, b.fallingDeathT + 0.2);
@@ -983,8 +1012,10 @@ function beginFallDeath(b) {
     __va('player_eliminated', {
       survival_s: inCount ? 0 : survivalSeconds(),
       cause,
-      had_revive: scrambleRevivesLeft > 0 ? 1 : 0,
+      fall_kind,
+      had_revive: usedScrambleRevive ? 1 : 0,
       support,
+      support_drop,
       map: mapVariant,
       practice: practiceRound ? 1 : 0,
       training: trainingMode ? 1 : 0
@@ -1808,6 +1839,7 @@ function loop() {
 }
 window.__game = {
   get state() { return state; },
+  set state(v) { state = v; },
   get beans() { return beans; },
   get tiles() { return tiles; },
   get points() { return points; },
@@ -1822,11 +1854,16 @@ window.__game = {
   get camChaseYaw() { return camChaseYaw; },
   get camYawTau() { return camYawTau; },
   get roundStart() { return roundStart; },
+  set roundStart(v) { roundStart = v; },
   get lastJuice() { return lastJuice; },
   get scrambleRevivesLeft() { return scrambleRevivesLeft; },
+  get usedScrambleRevive() { return usedScrambleRevive; },
   get localFallingDeath() { return beans.find(b => !b.ai && b.fallingDeath) || null; },
   get assetClips() { return AssetClips; },
   get codeRig() { return true; },
+  supportingTile,
+  pickSafeTileNear,
+  pickOkRevivePad: (prefer) => pickOkRevivePad(tiles, prefer),
   scrambleRevive,
   beginFallDeath,
   enterTrainingMode,

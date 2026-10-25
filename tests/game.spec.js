@@ -772,3 +772,159 @@ test('countdown fall reports fell_count survival 0; spawn on ok tiles', async ({
   await page.keyboard.up('KeyW');
   expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
 });
+
+test('standing on freshly falling tile remains supported until it drops', async ({ page }) => {
+  test.setTimeout(60_000);
+  const { pageErrors, start, fallback } = await bootGame(page, { practiceDone: true });
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    return;
+  }
+  await start.click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 8_000 })
+    .toMatch(/count|play/);
+
+  const result = await page.evaluate(() => {
+    const g = window.__game;
+    g.state = 'play';
+    g.roundStart = performance.now();
+    const me = g.beans.find(b => b.name === '你');
+    const tile = g.tiles.find(t => t.st === 'ok') || g.tiles[0];
+    // Park player on tile center, grounded.
+    me.alive = true;
+    me.fallingDeath = false;
+    me.p.set(tile.x, 0, tile.z);
+    me.v.set(0, 0, 0);
+    me.ground = true;
+    me.m.position.copy(me.p);
+    tile.st = 'fall';
+    tile.vy = 0;
+    // Fresh fall: still at rest height — must still count as support.
+    const still = g.supportingTile(me);
+    const freshOk = !!(still && still.t === tile);
+    // Drop past ride window.
+    tile.y = -0.3 - 0.85 - 0.1; // well below TILE_TOP - rideDrop
+    const after = g.supportingTile(me);
+    const droppedGone = !after || after.t !== tile;
+    return { freshOk, droppedGone, tileSt: tile.st };
+  });
+
+  expect(result.freshOk).toBe(true);
+  expect(result.droppedGone).toBe(true);
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});
+
+test('scramble revive pads are ok-only never crack', async ({ page }) => {
+  test.setTimeout(60_000);
+  const { pageErrors, start, fallback } = await bootGame(page, { practiceDone: true });
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    return;
+  }
+  await start.click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 8_000 })
+    .toMatch(/count|play/);
+
+  const result = await page.evaluate(() => {
+    const g = window.__game;
+    g.state = 'play';
+    // Crack every tile that is not already gone, leave two ok far away.
+    for (const t of g.tiles) {
+      if (t.st === 'gone') continue;
+      t.st = 'crack';
+    }
+    const oks = g.tiles.filter(t => t.st !== 'gone').slice(0, 2);
+    for (const t of oks) t.st = 'ok';
+    const me = g.beans.find(b => b.name === '你');
+    me.p.set(0, 1, 0);
+    const near = g.pickSafeTileNear(me.p, { okOnly: true });
+    const pad = g.pickOkRevivePad(me.p);
+    const revived = g.scrambleRevive(me);
+    return {
+      nearSt: near?.st ?? null,
+      padSt: pad?.st ?? null,
+      revived,
+      landSt: (() => {
+        const landed = g.tiles.find(t => Math.abs(t.x - me.p.x) < 0.2 && Math.abs(t.z - me.p.z) < 0.2);
+        return landed?.st ?? null;
+      })(),
+      used: g.usedScrambleRevive
+    };
+  });
+
+  expect(result.nearSt).toBe('ok');
+  expect(result.padSt).toBe('ok');
+  expect(result.revived).toBe(true);
+  expect(result.landSt).toBe('ok');
+  expect(result.used).toBe(true);
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});
+
+test('player_eliminated payload has fall_kind and had_revive semantics', async ({ page }) => {
+  test.setTimeout(60_000);
+  const { pageErrors, start, fallback } = await bootGame(page, { practiceDone: true });
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    return;
+  }
+  await start.click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 8_000 })
+    .toMatch(/count|play/);
+
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.state = 'play';
+    g.roundStart = performance.now() - 5000;
+    const me = g.beans.find(b => b.name === '你');
+    // Simulate collapse loss after a prior revive was used.
+    me.alive = true;
+    me.fallingDeath = false;
+    me.lastSupportSt = 'crack';
+    me.supportLossKind = 'collapse';
+    me.lastSupportTile = { st: 'fall', y: -1, x: 0, z: 0 };
+    // Mark revive already used via a successful scrambleRevive on an ok pad.
+    for (const t of g.tiles) if (t.st !== 'gone') t.st = 'ok';
+    g.scrambleRevive(me);
+    // Force fall death after revive.
+    me.p.y = -20;
+    me.v.y = -5;
+    me.supportLossKind = 'collapse';
+    me.lastSupportSt = 'crack';
+    g.beginFallDeath(me);
+  });
+
+  await page.waitForTimeout(200);
+  const last = await page.evaluate(() => {
+    const events = (window.__vaEvents || []).filter(e => e.name === 'player_eliminated');
+    return events.length ? events[events.length - 1].data : null;
+  });
+
+  expect(last).toBeTruthy();
+  expect(last.cause).toBe('fell');
+  expect(last.fall_kind).toBe('collapse');
+  expect(last.had_revive).toBe(1);
+  expect(last).toHaveProperty('support');
+  expect(['ok', 'crack', 'none']).toContain(last.support);
+
+  // Countdown path still maps to fell_count / fall_kind count.
+  await page.evaluate(() => {
+    window.__vaEvents = [];
+    const g = window.__game;
+    g.state = 'count';
+    const me = g.beans.find(b => b.name === '你');
+    me.alive = true;
+    me.fallingDeath = false;
+    me.supportLossKind = 'air';
+    me.lastSupportSt = 'ok';
+    g.beginFallDeath(me);
+  });
+  const countDeath = await page.evaluate(() => {
+    const events = (window.__vaEvents || []).filter(e => e.name === 'player_eliminated');
+    return events.length ? events[events.length - 1].data : null;
+  });
+  expect(countDeath.cause).toBe('fell_count');
+  expect(countDeath.fall_kind).toBe('count');
+  expect(countDeath.survival_s).toBe(0);
+
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});

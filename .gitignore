@@ -6,3 +6,5 @@ node_modules
 verify-*.png
 playwright-report/
 test-results/
+vendor-three/
+ortho-hero.html
