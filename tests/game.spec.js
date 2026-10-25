@@ -928,3 +928,112 @@ test('player_eliminated payload has fall_kind and had_revive semantics', async (
 
   expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
 });
+
+test('resultDetail shows collapse death cause after beginFallDeath/endRound', async ({ page }) => {
+  test.setTimeout(60_000);
+  const { pageErrors, start, fallback } = await bootGame(page, { practiceDone: true });
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    return;
+  }
+  await start.click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 8_000 })
+    .toMatch(/count|play/);
+
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.state = 'play';
+    g.roundStart = performance.now() - 8000;
+    // Ensure no scramble revive steals the death.
+    while (g.scrambleRevivesLeft > 0) {
+      // drain via direct property is read-only; force fall death API instead
+      break;
+    }
+    const me = g.beans.find(b => b.name === '你');
+    me.alive = true;
+    me.fallingDeath = false;
+    me.lastSupportSt = 'crack';
+    me.supportLossKind = 'collapse';
+    me.lastSupportTile = { st: 'fall', y: -1, x: 0, z: 0 };
+    // Spend revive slot by killing physics revive path: call beginFallDeath directly.
+    g.beginFallDeath(me);
+  });
+
+  await expect.poll(() => page.evaluate(() => {
+    const g = window.__game;
+    return g?.lastDeathReason?.fall_kind || null;
+  }), { timeout: 3_000 }).toBe('collapse');
+
+  await expect.poll(() => page.evaluate(() => {
+    const msg = document.querySelector('#msg')?.textContent || '';
+    const cap = document.querySelector('#captions')?.textContent || '';
+    return msg.includes('脚下的砖塌了') || msg.includes('floor collapsed')
+      || cap.includes('脚下的砖塌了') || cap.includes('floor collapsed');
+  }), { timeout: 2_000 }).toBeTruthy();
+
+  // Wait for tumble → finishFallDeath → endRound result card.
+  await expect.poll(() => page.evaluate(() => {
+    const result = document.querySelector('#result');
+    const detail = document.querySelector('#resultDetail')?.textContent || '';
+    return Boolean(result && !result.hidden && (detail.includes('脚下的砖塌了') || detail.includes('floor collapsed')));
+  }), { timeout: 5_000 }).toBeTruthy();
+
+  const shown = await page.evaluate(() => {
+    const events = (window.__vaEvents || []).filter(e => e.name === 'death_reason_shown');
+    return events.length ? events[events.length - 1].data : null;
+  });
+  expect(shown).toBeTruthy();
+  expect(shown.fall_kind).toBe('collapse');
+
+  const detail = await page.locator('#resultDetail').textContent();
+  expect(detail).toMatch(/死因：脚下的砖塌了|Cause: floor collapsed under you/);
+  await expect(page.locator('#resultTitle')).toContainText(/你出局了|You are out/);
+
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});
+
+test('underfoot crack warn flashes personal jump copy once', async ({ page }) => {
+  test.setTimeout(60_000);
+  const { pageErrors, start, fallback } = await bootGame(page, { practiceDone: true });
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    return;
+  }
+  await start.click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 8_000 })
+    .toMatch(/count|play/);
+
+  const result = await page.evaluate(() => {
+    const g = window.__game;
+    g.state = 'play';
+    const me = g.beans.find(b => b.name === '你');
+    me.alive = true;
+    me.fallingDeath = false;
+    const tile = g.tiles.find(t => t.st === 'ok') || g.tiles[0];
+    tile.st = 'crack';
+    tile.t = 1.55;
+    tile.underfootWarned = false;
+    tile.graceGiven = false;
+    me.p.x = tile.x;
+    me.p.z = tile.z;
+    me.p.y = 0.5;
+    me.lastSupportTile = tile;
+    me.lastSupportSt = 'crack';
+    const beforeT = tile.t;
+    const first = g.fireUnderfootCrackWarn(tile);
+    const afterT = tile.t;
+    const second = g.fireUnderfootCrackWarn(tile);
+    const msg = document.querySelector('#msg')?.textContent || '';
+    const crackClass = document.querySelector('#crackWarn')?.className || '';
+    return { first, second, beforeT, afterT, msg, crackClass, grace: tile.graceGiven };
+  });
+
+  expect(result.first).toBe(true);
+  expect(result.second).toBe(false);
+  expect(result.grace).toBe(true);
+  expect(result.afterT).toBeCloseTo(result.beforeT + 0.35, 5);
+  expect(result.msg).toMatch(/脚下裂了|Floor cracking under you/);
+  expect(result.crackClass).toMatch(/warn-underfoot/);
+
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});
