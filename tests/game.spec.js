@@ -1037,3 +1037,147 @@ test('underfoot crack warn flashes personal jump copy once', async ({ page }) =>
 
   expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
 });
+
+test('last-round replay: persist package → enter replay → ghost moves + death caption', async ({ page }) => {
+  test.setTimeout(90_000);
+  const fakePkg = {
+    v: 1,
+    at: Date.now(),
+    map: 'classic',
+    mode: 'classic',
+    fall_kind: 'collapse',
+    survival_s: 8.5,
+    events: [
+      { t: 0, type: 'snapshot', x: -2, z: 0, grounded: 1, alive: 4 },
+      { t: 250, type: 'snapshot', x: -1, z: 0, grounded: 1, alive: 4 },
+      { t: 400, type: 'tile_warn', tile: 20, x: 0, z: 0, underfoot: 1 },
+      { t: 500, type: 'snapshot', x: 0, z: 0, grounded: 1, alive: 3 },
+      { t: 750, type: 'snapshot', x: 1, z: 0, grounded: 1, alive: 3 },
+      { t: 900, type: 'tile_fall', tile: 20, x: 0, z: 0, underfoot: 1 },
+      { t: 1000, type: 'snapshot', x: 2, z: 0, grounded: 0, alive: 2 },
+      { t: 1200, type: 'death', x: 2, z: 0, fall_kind: 'collapse' }
+    ]
+  };
+
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+
+  await page.route('**/flags.json', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        maintenance: false,
+        maintenanceMessage: '维护提示：当前为安全演示模式。',
+        forceFallbackAssets: true,
+      }),
+    });
+  });
+
+  await page.addInitScript(({ practiceDone, fakePkg }) => {
+    window.__vaEvents = [];
+    const prev = window.va;
+    window.va = function (...args) {
+      if (args[0] === 'event' && args[1]) window.__vaEvents.push(args[1]);
+      return typeof prev === 'function' ? prev.apply(this, args) : undefined;
+    };
+    if (practiceDone) localStorage.setItem('blockbean_practice_done', '1');
+    localStorage.setItem('blockbean_reduce_motion', '1');
+    localStorage.setItem('blockbean_last_replay', JSON.stringify(fakePkg));
+  }, { practiceDone: true, fakePkg });
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  const start = page.locator('#start');
+  const fallback = page.locator('#fallback, [data-fallback]').first();
+  await expect.poll(async () => {
+    const ready = await start.isEnabled().catch(() => false);
+    const unavailable = await fallback.isVisible().catch(() => false);
+    return ready || unavailable;
+  }, { timeout: 30_000 }).toBeTruthy();
+
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    return;
+  }
+
+  await expect(page.locator('#splashReplayBtn')).toBeVisible();
+  await page.locator('#splashReplayBtn').click();
+
+  await expect.poll(() => page.evaluate(() => window.__game?.state === 'replay' && window.__game?.replayMode === true), {
+    timeout: 8_000
+  }).toBeTruthy();
+
+  await expect.poll(() => page.evaluate(() => {
+    const events = window.__vaEvents || [];
+    return events.some(e => e?.name === 'replay_start');
+  })).toBeTruthy();
+
+  const startX = await page.evaluate(() => window.__game?.beans?.[0]?.p?.x ?? null);
+  expect(startX).not.toBeNull();
+
+  await expect.poll(() => page.evaluate(() => {
+    const b = window.__game?.beans?.[0];
+    return b && Math.abs(b.p.x - (-2)) > 0.4;
+  }), { timeout: 6_000 }).toBeTruthy();
+
+  await expect.poll(() => page.evaluate(() => {
+    const cap = document.getElementById('captions')?.textContent || '';
+    const msg = document.getElementById('msg')?.textContent || '';
+    return /塌了|collapsed|回放结束|Replay ended|死因/i.test(cap + msg);
+  }), { timeout: 8_000 }).toBeTruthy();
+
+  await expect.poll(() => page.evaluate(() => {
+    const events = window.__vaEvents || [];
+    return events.some(e => e?.name === 'replay_end');
+  }), { timeout: 8_000 }).toBeTruthy();
+
+  await page.keyboard.press('Escape');
+  await expect.poll(() => page.evaluate(() => window.__game?.replayMode !== true && window.__game?.state !== 'replay'), {
+    timeout: 5_000
+  }).toBeTruthy();
+
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});
+
+test('local_out persists blockbean_last_replay for next loss', async ({ page }) => {
+  test.setTimeout(90_000);
+  const { pageErrors, start, fallback } = await bootGame(page, { practiceDone: true });
+  if (await fallback.isVisible()) return;
+
+  await page.evaluate(() => localStorage.removeItem('blockbean_last_replay'));
+  await start.click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 10_000 }).toBe('play');
+
+  // Burn revive then die.
+  expect(await page.evaluate(() => {
+    const me = window.__game?.beans?.find(b => b.name === '你');
+    if (!me) return false;
+    me.p.y = -20; me.v.y = -1;
+    return true;
+  })).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__game?.scrambleRevivesLeft === 0), { timeout: 8_000 }).toBeTruthy();
+
+  expect(await page.evaluate(() => {
+    const me = window.__game?.beans?.find(b => b.name === '你');
+    if (!me) return false;
+    me.invulnT = 0; me.p.y = -20; me.v.y = -1;
+    return true;
+  })).toBe(true);
+
+  await expect(page.locator('#result')).toBeVisible({ timeout: 12_000 });
+  await expect(page.locator('#replayLastBtn')).toBeVisible();
+
+  const pkg = await page.evaluate(() => {
+    try { return JSON.parse(localStorage.getItem('blockbean_last_replay') || 'null'); }
+    catch (_) { return null; }
+  });
+  expect(pkg?.v).toBe(1);
+  expect(Array.isArray(pkg?.events)).toBe(true);
+  expect(pkg.events.length).toBeGreaterThan(0);
+  expect(pkg.events.some(e => e.type === 'death' || e.type === 'snapshot')).toBe(true);
+
+  await page.locator('#replayLastBtn').click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state === 'replay'), { timeout: 8_000 }).toBeTruthy();
+
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});
