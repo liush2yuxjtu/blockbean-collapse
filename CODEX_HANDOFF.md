@@ -160,3 +160,7 @@ This conflicts with how players treat “I fell = my run is over,” even though
 
 **Do not** call Tripo MCP or regenerate GLBs for this PR.
 
+
+## P0 UX — Cam-relative screen-forward move (2026-10-26)
+
+**Branch `fix/cam-relative-move`.** W/up = +mz (screen forward); touch stick Y inverted into +mz; human wish rotated by `camChaseYaw` into world (AI unchanged). W at yaw≈0 moves +Z, face away from cam, cam stays behind.

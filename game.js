@@ -817,11 +817,22 @@ function control(b, dt) {
   b.stunT = Math.max(0, (b.stunT || 0) - dt);
   b.invulnT = Math.max(0, (b.invulnT || 0) - dt);
   const raw = inputFor(b);
+  // Humans: map screen wish (mx/mz) through chase-cam yaw into world XZ. AI seek is already world-space.
+  let wishX = raw.mx;
+  let wishZ = raw.mz;
+  if (!b.ai) {
+    const yaw = camChaseYaw;
+    const cos = Math.cos(yaw);
+    const sin = Math.sin(yaw);
+    // cam forward = (sin, cos), right = (cos, -sin)
+    wishX = raw.mx * cos + raw.mz * sin;
+    wishZ = -raw.mx * sin + raw.mz * cos;
+  }
   // Analog-smooth: interpolate input vector so digital WASD / AI seek don't snap to 8 dirs.
-  const rawLen = Math.hypot(raw.mx, raw.mz);
+  const rawLen = Math.hypot(wishX, wishZ);
   const cap = Math.min(1, rawLen || 0);
-  const tx = rawLen > 1e-4 ? (raw.mx / rawLen) * cap : 0;
-  const tz = rawLen > 1e-4 ? (raw.mz / rawLen) * cap : 0;
+  const tx = rawLen > 1e-4 ? (wishX / rawLen) * cap : 0;
+  const tz = rawLen > 1e-4 ? (wishZ / rawLen) * cap : 0;
   const steerRate = rawLen > 0.05 ? (b.ai ? 7.5 : 9.5) : (b.ai ? 5.5 : 7);
   b.steerX += (tx - b.steerX) * Math.min(1, steerRate * dt);
   b.steerZ += (tz - b.steerZ) * Math.min(1, steerRate * dt);
@@ -1228,7 +1239,8 @@ function bindTouch() {
     let z = dz / max;
     const stickLen = Math.hypot(x, z);
     if (stickLen > 1) { x /= stickLen; z /= stickLen; }
-    touch.x = x; touch.z = z;
+    // Invert stick Y into screen/world forward: drag up → +touch.z → +mz (knob still follows finger).
+    touch.x = x; touch.z = -z;
     knob.style.transform = `translate(${x * max}px,${z * max}px)`;
   };
   const end = () => { active = false; touch.x = touch.z = 0; knob.style.transform = 'translate(0,0)'; };
