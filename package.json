@@ -5,10 +5,11 @@
   "type": "module",
   "description": "BlockBean Collapse: a browser based last bean standing game",
   "scripts": {
-    "test": "playwright test",
+    "test": "npm run test:unit && playwright test",
     "test:headed": "playwright test --headed",
     "verify": "bash .agents/skills/verify/scripts/verify.sh",
-    "verify:demo": "node scripts/verify-prd-demo.mjs"
+    "verify:demo": "node scripts/verify-prd-demo.mjs",
+    "test:unit": "node --test tests/perfTelemetry.node.test.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1"
