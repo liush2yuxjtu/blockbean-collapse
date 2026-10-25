@@ -360,6 +360,36 @@ test('death tumble then result; chase cam follows hero yaw', async ({ page }) =>
       && br?.torso && br?.armR;
   })).toBeTruthy();
 
+  // Mesh face correction: Tripo GLBs face local -Z; attachBeanRig rotates visual by PI so face = +Z.
+  const visYaw = await page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    let y = me.m.userData.rig.visual.rotation.y;
+    while (y > Math.PI) y -= Math.PI * 2;
+    while (y < -Math.PI) y += Math.PI * 2;
+    return y;
+  });
+  expect(Math.abs(Math.abs(visYaw) - Math.PI)).toBeLessThan(0.08);
+
+  // Push aims along bean forward (local +Z): rival on +Z at yaw 0 must get hit.
+  await page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    const rival = window.__game.beans.find(b => b.ai && b.alive) || window.__game.beans.find(b => b.ai);
+    me.m.rotation.y = 0;
+    me.p.set(0, Math.max(me.p.y, 0.5), 0);
+    me.m.position.copy(me.p);
+    me.cd = 0;
+    me.alive = true;
+    if (rival) {
+      rival.alive = true;
+      rival.invulnT = 0;
+      rival.p.set(0.1, me.p.y, 1.2);
+      rival.m.position.copy(rival.p);
+    }
+    window.__game.lastJuice.pushAt = 0;
+    window.__game.debugPush(me);
+  });
+  await expect.poll(() => page.evaluate(() => (window.__game?.lastJuice?.pushAt || 0) > 0), { timeout: 3_000 }).toBeTruthy();
+
   // Burn scramble revive first.
   await page.evaluate(() => {
     const me = window.__game.beans.find(b => b.name === '你');
@@ -403,21 +433,26 @@ test('death tumble then result; chase cam follows hero yaw', async ({ page }) =>
     me.m.userData.rig.phase = 0.5;
     me.m.userData.rig.clip = 'idle';
   });
-  await page.keyboard.down('KeyW');
+  // Hold S (+Z): bean yaw should face +Z, lean tips along local +Z (run dir), limbs swing.
+  await page.keyboard.down('KeyS');
   await expect.poll(() => page.evaluate(() => {
     const me = window.__game.beans.find(b => b.name === '你');
     const rig = me?.m?.userData?.rig;
     if (!me || !rig) return false;
-    // Keep locomotion alive inside the poll in case friction wins a frame.
     if (me.alive && !me.fallingDeath) {
       me.ground = true;
       me.v.z = Math.max(me.v.z, 4);
       me.steerZ = 1;
     }
+    let face = me.m.rotation.y;
+    while (face > Math.PI) face -= Math.PI * 2;
+    while (face < -Math.PI) face += Math.PI * 2;
+    const facesRunDir = Math.abs(face) < 0.7; // ~0 faces +Z
     const limbSwing = Math.abs(rig.armL.rotation.x) + Math.abs(rig.legR.rotation.x);
-    return me.leanPitch > 0.04 && (rig.clip === 'walk' || limbSwing > 0.12) && limbSwing > 0.08;
+    const leanFwd = me.leanPitch > 0.04 && rig.torso.rotation.x > 0.03;
+    return facesRunDir && leanFwd && (rig.clip === 'walk' || limbSwing > 0.12) && limbSwing > 0.08;
   }), { timeout: 5_000 }).toBeTruthy();
-  await page.keyboard.up('KeyW');
+  await page.keyboard.up('KeyS');
 
   // Fall tumble uses code rig tumble root + fall clip (death watch before result).
   const tumbleBefore = await page.evaluate(() => {
