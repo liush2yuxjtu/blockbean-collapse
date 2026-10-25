@@ -136,7 +136,7 @@ test('P0 local-out shows result + round_end; spectate next/leave work', async ({
   await expect.poll(() => page.evaluate(() => (window.__game?.lastJuice?.reviveAt || 0) > 0)).toBeTruthy();
   await expect(page.locator('#result')).toBeHidden();
 
-  // Second fall → result-first local_out (no more revives).
+  // Second fall → death tumble watch, then result-first local_out (no more revives).
   expect(await page.evaluate(() => {
     const me = window.__game?.beans?.find(b => b.name === '你');
     if (!me) return false;
@@ -145,6 +145,14 @@ test('P0 local-out shows result + round_end; spectate next/leave work', async ({
     me.v.y = -1;
     return true;
   })).toBe(true);
+
+  // Player must see their own fall before the result card.
+  await expect.poll(() => page.evaluate(() => {
+    const me = window.__game?.beans?.find(b => b.name === '你');
+    const resultHidden = document.getElementById('result')?.hidden !== false;
+    return Boolean(me?.fallingDeath) && resultHidden && window.__game?.roundEndFired !== true;
+  }), { timeout: 5_000 }).toBeTruthy();
+  await expect.poll(() => page.evaluate(() => (window.__game?.lastJuice?.fallDeathAt || 0) > 0)).toBeTruthy();
 
   await expect(page.locator('#result')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('#resultTitle')).toContainText(/出局|out/i);
@@ -195,6 +203,7 @@ test('P0 local-out shows result + round_end; spectate next/leave work', async ({
     me.v.y = -1;
     return true;
   })).toBe(true);
+  await expect.poll(() => page.evaluate(() => Boolean(window.__game?.localFallingDeath)), { timeout: 5_000 }).toBeTruthy();
   await expect(page.locator('#result')).toBeVisible({ timeout: 10_000 });
   await page.locator('#resultLeaveBtn').click();
   await expect.poll(() => page.evaluate(() => {
@@ -329,3 +338,66 @@ test('victim knockback juice when rival pushes local bean', async ({ page }) => 
   expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
 });
 
+test('death tumble then result; chase cam follows hero yaw', async ({ page }) => {
+  test.setTimeout(90_000);
+  const { pageErrors, start, fallback } = await bootGame(page, { practiceDone: true });
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    return;
+  }
+  await start.click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 10_000 })
+    .toBe('play');
+
+  // Burn scramble revive first.
+  await page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    me.p.y = -20; me.v.y = -1;
+  });
+  await expect.poll(() => page.evaluate(() => window.__game?.scrambleRevivesLeft === 0), { timeout: 8_000 }).toBeTruthy();
+
+  // Face +Z then +X and confirm chase yaw tracks (third-person behind-bean).
+  await page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    me.m.rotation.y = 0;
+    me.p.set(0, me.p.y, 0);
+    me.m.position.copy(me.p);
+  });
+  await page.waitForTimeout(350);
+  const yaw0 = await page.evaluate(() => window.__game.camChaseYaw);
+  expect(Math.abs(yaw0) < 0.6 || Math.abs(Math.abs(yaw0) - Math.PI * 2) < 0.6).toBeTruthy();
+
+  await page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    me.m.rotation.y = Math.PI / 2;
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const y = window.__game.camChaseYaw;
+    // nearest angle distance to +PI/2
+    let d = y - Math.PI / 2;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    return Math.abs(d);
+  }), { timeout: 5_000 }).toBeLessThan(0.55);
+
+  // Punch should be dampable and expose camChaseYaw API.
+  await page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    me.invulnT = 0;
+    me.p.y = -20;
+    me.v.y = -1;
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    return me?.fallingDeath === true && document.getElementById('result')?.hidden !== false;
+  }), { timeout: 5_000 }).toBeTruthy();
+  // Camera still focuses the tumbling hero (not yet result).
+  await expect.poll(() => page.evaluate(() => window.__game.roundEndFired !== true)).toBeTruthy();
+  await expect(page.locator('#result')).toBeVisible({ timeout: 10_000 });
+  await expect.poll(() => page.evaluate(() => window.__game?.lastEndReason === 'local_out')).toBeTruthy();
+
+  // Asset clip hook map exists for Tripo swap.
+  await expect.poll(() => page.evaluate(() => typeof window.__game?.assetClips === 'object')).toBeTruthy();
+
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});

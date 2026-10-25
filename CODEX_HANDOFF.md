@@ -115,3 +115,34 @@ This conflicts with how players treat “I fell = my run is over,” even though
 - Investigating `runtime_fallback` WebGL rate (separate).
 
 **Implement in** `game.js` (+ Playwright if T2 harness exists). Docs: sync this section; mark TRIAGE Spectator C1 note = result-first.
+
+---
+
+## P0 UX — Death tumble + chase cam + Tripo skinned beans (2026-10-26)
+
+**Shipped in code (this PR branch `fix/death-chase-cam`) — no Tripo spend:**
+
+1. **Fall death watch:** when the hero is eliminated by fall/push-off, `beginFallDeath` keeps the mesh tumbling ~0.8–1.5s (`fallingDeathT`) while the chase cam stays on them; **then** `finishFallDeath` → result-first `endRound(local_out)`. Not an instant cut to result/spectate.
+2. **Chase cam + punch:** camera orbits behind the hero using smoothed `camChaseYaw` from bean facing (over-shoulder offset). Impact `punch()` kicks in **camera-local** axes (right / up / back along look), not world-fixed random shake.
+3. **Motion feel without new GLBs:** existing hero/rival GLBs are static (0 skins / 0 clips). `updateBeanMotionFeel` adds procedural lean / run bob / fall stretch on the visual child. `AssetClips` + `AnimationMixer` hooks on `makeBean` so a skinned/animated GLB drop-in works without rewriting gameplay.
+
+### Exact Tripo asks for `tripo-3d-bot` (do NOT invent GLBs in Codex PRs)
+
+| ID | Deliverable | Why |
+|----|-------------|-----|
+| `hero_blockbean_skinned` | Same silhouette as current hero, **skinned** (root + spine + arms + legs), T-pose bind | Enables real clips |
+| `rival_blockbean_skinned` | Same topology as hero, coral tint | Shared clip retarget |
+| `clip_walk` | Loop walk / jog in place, ~1s, root motion optional (prefer in-place) | Locomotion |
+| `clip_push` | Short shove / shoulder-check, ~0.4s | Push juice |
+| `clip_fall` / `clip_ragdoll_flail` | Tumbling / flail while falling, ~1–1.5s | Death watch replaces procedural spin when present |
+| Export | `assets/{hero,rival}/model.glb` **or** side-by-side `model_skinned.glb` + clip names `walk`/`push`/`fall`/`idle` | Load path already reads `g.animations` into `AssetClips[name]` |
+
+**Acceptance for Tripo drop-in:**
+
+- Replace or add GLB under `assets/hero` / `assets/rival` (do not compress).
+- Clips named so `makeBean` picks `walk`/`idle`/`push`/`fall` (case-insensitive).
+- On load, `AssetClips.hero.length > 0` and mixer plays; procedural lean becomes fallback only when clips missing.
+- Death watch prefers `actions.fall` if present (follow-up wire is one-liner in `beginFallDeath`).
+
+**Out of scope for the code PR:** generating / refining Tripo meshes, spending Tripo credits, rewriting ASSET_BRIEF style bible.
+

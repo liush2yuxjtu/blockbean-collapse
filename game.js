@@ -6,7 +6,7 @@ import { createInputState, readPlayerInput } from './modules/input.js';
 import { formatShareText, randomRoast, setText } from './modules/ui.js';
 
 const PLAY_URL = 'https://blockbean-collapse.vercel.app';
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 const BALANCE = {
   push: {
     easy: { force: 9, cooldown: 1.05 },
@@ -98,8 +98,14 @@ manager.onProgress = (_url, loaded, total) => {
 };
 manager.onError = url => { console.warn('Load error', url); setText($('load'), '部分模型加载失败，使用方块替代'); __va('asset_error', { url }); };
 const loader = new GLTFLoader(manager);
+// Parallel clip map so animated/skinned GLBs can swap in without rewrite (Tripo next).
+const AssetClips = {};
 const loadAsset = name => flags.forceFallbackAssets ? Promise.resolve(null) : loader.loadAsync('assets/' + name + '/model.glb')
-  .then(g => { A[name] = g.scene; return g.scene; })
+  .then(g => {
+    A[name] = g.scene;
+    AssetClips[name] = Array.isArray(g.animations) ? g.animations : [];
+    return g.scene;
+  })
   .catch(err => { console.warn('GLB fail: ' + name, err); __va('asset_error', { asset: name }); return null; });
 await Promise.all(['hero', 'spikebox'].map(loadAsset));
 if ($('loadbar')) {
@@ -258,6 +264,7 @@ const SpikeProto = cloneFitted(A.spikebox, 1.5);
 let SkinProto = null;
 
 function makeBean(isHero, color) {
+  const assetKey = isHero ? (skin === 'mint' && SkinProto ? 'skin_mint' : 'hero') : 'rival';
   const visual = cloneFitted(isHero && skin === 'mint' && SkinProto ? SkinProto : (isHero ? A.hero : (RivalProto || A.rival)), 1.4, isHero ? undefined : color);
   const group = visual || new THREE.Mesh(
     new THREE.CapsuleGeometry(0.42, 0.62, 4, 8),
@@ -266,6 +273,22 @@ function makeBean(isHero, color) {
   if (!visual) group.geometry.translate(0, 0.72, 0);
   const root = new THREE.Group();
   root.add(group);
+  root.userData.visual = group;
+  root.userData.assetKey = assetKey;
+  // Easy animated-GLB swap: when Tripo ships skinned clips, mixer plays them here.
+  const clips = AssetClips[assetKey] || AssetClips[isHero ? 'hero' : 'rival'] || [];
+  if (clips.length) {
+    const mixer = new THREE.AnimationMixer(group);
+    const actions = {};
+    for (const clip of clips) {
+      const key = (clip.name || 'idle').toLowerCase();
+      actions[key] = mixer.clipAction(clip);
+    }
+    root.userData.mixer = mixer;
+    root.userData.actions = actions;
+    const start = actions.walk || actions.idle || actions[Object.keys(actions)[0]];
+    if (start) start.play();
+  }
   return root;
 }
 function makeSpike() {
@@ -290,7 +313,8 @@ let cameraPunch = 0;
 let shakeOffset = new THREE.Vector3();
 let shakeVel = new THREE.Vector3();
 let crackPulseT = 0;
-let lastJuice = { pushAt: 0, pushedAt: 0, warnAt: 0, fallAt: 0, reviveAt: 0 };
+let lastJuice = { pushAt: 0, pushedAt: 0, warnAt: 0, fallAt: 0, reviveAt: 0, fallDeathAt: 0 };
+let camChaseYaw = 0;
 // Fall Guys lean: 1 mid-round scramble revive (race-checkpoint pattern), not infinite.
 let scrambleRevivesLeft = 1;
 let spectating = false;
@@ -496,10 +520,17 @@ function flash(text, duration = 1.2) {
 }
 function punch(amount = 0.18) {
   if (reduceMotion) return;
-  // Discrete one-shot kick; camera loop damps shakeVel/offset — no continuous random sway.
+  // Chase-cam punch: kick in look-local axes (back / up / mild lateral), not dizzy world random.
   cameraPunch = Math.max(cameraPunch, amount);
-  shakeVel.x += (Math.random() - 0.5) * amount * 2.4;
-  shakeVel.y += (Math.random() - 0.5) * amount * 1.6;
+  shakeVel.x += (Math.random() - 0.5) * amount * 0.55; // mild lateral in cam-right
+  shakeVel.y += amount * 0.55; // upward
+  shakeVel.z += amount * 0.95; // push camera back along look
+}
+function lerpAngle(a, b, t) {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
 }
 function firstResultTip(kind) {
   if (kind !== 'out' && kind !== 'win') return '';
@@ -532,6 +563,8 @@ function reset() {
   slowMo = 0;
   cameraPullback = 0;
   cameraPunch = 0;
+  camChaseYaw = 0;
+  lastJuice.fallDeathAt = 0;
   shakeOffset.set(0, 0, 0);
   shakeVel.set(0, 0, 0);
   particles.splice(0).forEach(p => scene.remove(p.m));
@@ -560,6 +593,8 @@ function reset() {
     const m = makeBean(human === 1, colors[k % colors.length]);
     const pos = new THREE.Vector3(Math.cos(angle) * 5, 3, Math.sin(angle) * 5);
     const b = createBeanState({ name, ai: !human, human, p: pos, mesh: m, color: colors[k % colors.length] });
+    b.mixer = m.userData?.mixer || null;
+    b.actions = m.userData?.actions || null;
     m.position.copy(b.p);
     scene.add(m);
     beans.push(b);
@@ -843,27 +878,109 @@ function physics(b, dt) {
   }
   // Longer coyote + soft ledge (supportingTile half) soften one-mistake deaths (Fall Guys fair-fail pillar).
   if (wasGround && !b.ground) b.coyote = 0.22;
-  if (b.p.y < -15) {
+  if (b.p.y < -15 && !b.fallingDeath) {
     const canRevive = !b.ai && !practiceRound && scrambleRevivesLeft > 0 && state === 'play' && !roundEndFired;
     if (canRevive && scrambleRevive(b)) {
       // Fall Guys race-checkpoint pattern, lean: one scramble revive then result-first.
     } else {
-      b.alive = false;
-      scene.remove(b.m);
-      if (!b.ai) {
-        spectating = true;
-        slowMo = 1.1;
-        cameraPullback = 3;
-        playSfx('out');
-        __va('player_eliminated', { survival_s: Math.round((performance.now() - roundStart) / 1000), cause: 'fell' });
-        // Result-first: final local fall ends the player's run (spectate optional).
-        endRound({ end_reason: practiceRound ? 'practice_done' : 'local_out' });
-      } else {
-        flash(`${b.name} 出局！`, 0.8);
-      }
+      beginFallDeath(b);
     }
   }
   b.m.position.copy(b.p);
+}
+/** Local (and NPC) fall: watch tumble ~0.8–1.5s, then result / remove — not an instant cut. */
+function beginFallDeath(b) {
+  if (!b || b.fallingDeath || roundEndFired && !b.ai) return;
+  b.alive = false;
+  b.fallingDeath = true;
+  b.fallingDeathT = reduceMotion ? 0.28 : (0.85 + Math.random() * 0.55);
+  b.tumbleSpin = new THREE.Vector3(
+    (Math.random() > 0.5 ? 1 : -1) * (5.5 + Math.random() * 4),
+    (Math.random() - 0.5) * 3.5,
+    (Math.random() > 0.5 ? 1 : -1) * (4.5 + Math.random() * 3.5)
+  );
+  if (b.v.y > -3) b.v.y = -3;
+  b.v.x += (Math.random() - 0.5) * 4;
+  b.v.z += (Math.random() - 0.5) * 4;
+  if (b.m.parent !== scene) scene.add(b.m);
+  if (!b.ai) {
+    slowMo = Math.max(slowMo, 0.85);
+    cameraPullback = Math.max(cameraPullback, 1.5);
+    punch(0.22);
+    playSfx('out');
+    flash(language === 'zh' ? '掉下去了…' : 'Falling…', b.fallingDeathT + 0.2);
+    lastJuice.fallDeathAt = performance.now();
+    __va('player_eliminated', { survival_s: Math.round((performance.now() - roundStart) / 1000), cause: 'fell' });
+  } else {
+    flash(`${b.name} 出局！`, 0.8);
+  }
+}
+function updateFallDeath(b, dt) {
+  if (!b.fallingDeath) return;
+  b.fallingDeathT -= dt;
+  b.v.y -= 22 * dt;
+  b.p.addScaledVector(b.v, dt);
+  b.m.position.copy(b.p);
+  const vis = b.m.userData?.visual || b.m;
+  if (b.tumbleSpin) {
+    vis.rotation.x += b.tumbleSpin.x * dt;
+    vis.rotation.y += b.tumbleSpin.y * dt;
+    vis.rotation.z += b.tumbleSpin.z * dt;
+  }
+  const stretch = 1 + Math.min(0.4, Math.abs(b.v.y) * 0.018);
+  vis.scale.set(1 / Math.sqrt(stretch), stretch, 1 / Math.sqrt(stretch));
+  if (b.mixer) b.mixer.update(dt);
+  if (b.fallingDeathT <= 0) finishFallDeath(b);
+}
+function finishFallDeath(b) {
+  b.fallingDeath = false;
+  b.fallingDeathT = 0;
+  if (b.m) scene.remove(b.m);
+  if (!b.ai) {
+    spectating = true;
+    slowMo = 1.1;
+    cameraPullback = 3;
+    // Result-first after the player has watched their own fall.
+    endRound({ end_reason: practiceRound ? 'practice_done' : 'local_out' });
+  }
+}
+/** Procedural lean/squash when no skinned clips; mixer.update when clips exist. */
+function updateBeanMotionFeel(b, dt) {
+  if (!b?.m || b.fallingDeath) return;
+  if (b.mixer) {
+    b.mixer.update(dt);
+    const actions = b.actions || b.m.userData?.actions;
+    if (actions) {
+      const spd = Math.hypot(b.v.x, b.v.z);
+      const walk = actions.walk || actions.run;
+      const idle = actions.idle;
+      const push = actions.push;
+      if (b.cd > (BALANCE.push[pushLevel] || BALANCE.push.default).cooldown - 0.2 && push) {
+        push.reset().setEffectiveWeight(1).fadeIn(0.05).play();
+      } else if (walk && idle) {
+        const w = Math.min(1, spd / 4);
+        walk.setEffectiveWeight(w);
+        idle.setEffectiveWeight(1 - w);
+        if (w > 0.08 && !walk.isRunning()) walk.play();
+        if (w < 0.92 && !idle.isRunning()) idle.play();
+      }
+    }
+    return;
+  }
+  const vis = b.m.userData?.visual;
+  if (!vis || reduceMotion) return;
+  const spd = Math.hypot(b.v.x, b.v.z);
+  const targetPitch = b.ground ? clamp(spd * 0.035, 0, 0.28) : clamp(-b.v.y * 0.02, -0.35, 0.2);
+  const targetRoll = clamp(-(b.steerX || 0) * 0.28, -0.32, 0.32);
+  b.leanPitch += (targetPitch - b.leanPitch) * Math.min(1, 12 * dt);
+  b.leanRoll += (targetRoll - b.leanRoll) * Math.min(1, 12 * dt);
+  b.bobT = (b.bobT || 0) + dt * (5 + spd * 2.5);
+  const bob = (b.ground && spd > 0.25) ? Math.sin(b.bobT) * 0.05 : 0;
+  vis.rotation.x = b.leanPitch;
+  vis.rotation.z = b.leanRoll;
+  // Soft run squash on visual only (root scale reserved for push/land juice).
+  const sy = 1 - bob * 0.55 + (b.ground ? 0 : Math.min(0.18, Math.abs(b.v.y) * 0.012));
+  vis.scale.set(1 / Math.sqrt(Math.max(0.75, sy)), sy, 1 / Math.sqrt(Math.max(0.75, sy)));
 }
 function survivalSeconds() {
   if (!roundStart) return 0;
@@ -1231,9 +1348,15 @@ function loop() {
     // Wall-clock countdown so main-thread GLB parse stalls don't stretch the 3s gate.
     countdown = Math.max(0, (countDeadline - performance.now()) / 1000);
     if ($('msg')) $('msg').textContent = countdown > 0 ? Math.ceil(countdown) : 'GO!';
-    beans.forEach(b => physics(b, dt));
+    beans.forEach(b => {
+      if (b.fallingDeath) updateFallDeath(b, dt);
+      else if (b.alive) physics(b, dt);
+    });
     // Resolve deterministic test/debug falls during the countdown as well as during play.
-    if (beans.length && beans.filter(b => b.alive).length <= 1) endRound({ end_reason: practiceRound ? 'practice_done' : 'last_alive' });
+    const localTumblingCount = beans.some(b => !b.ai && b.fallingDeath);
+    if (!localTumblingCount && beans.length && beans.filter(b => b.alive).length <= 1) {
+      endRound({ end_reason: practiceRound ? 'practice_done' : 'last_alive' });
+    }
     if (countdown <= 0 && state === 'count') {
       state = 'play';
       roundStart = performance.now();
@@ -1307,9 +1430,14 @@ function loop() {
     }
     ghostT -= dt;
     beans.forEach(b => {
+      if (b.fallingDeath) {
+        updateFallDeath(b, dt);
+        return;
+      }
       if (!b.alive) return;
       control(b, dt);
       physics(b, dt);
+      updateBeanMotionFeel(b, dt);
       const d = b.p.clone().sub(spike.m.position);
       d.y = 0;
       b.hazardCd = Math.max(0, b.hazardCd - dt);
@@ -1325,13 +1453,19 @@ function loop() {
     if (ghostT <= 0) ghostT = 0.22;
     if (state === 'play') {
       const alive = beans.filter(b => b.alive);
+      const localTumbling = beans.some(b => !b.ai && b.fallingDeath);
       const practiceElapsed = roundStart ? (performance.now() - roundStart) / 1000 : 0;
-      if (practiceRound && !roundEndFired && (pushCount >= 1 || practiceElapsed >= 15)) {
+      // Hold result while the hero is still watching their own fall.
+      if (practiceRound && !roundEndFired && !localTumbling && (pushCount >= 1 || practiceElapsed >= 15)) {
         endRound({ end_reason: 'practice_done' });
-      } else if (alive.length <= 1 || timer <= 0) {
+      } else if (!localTumbling && (alive.length <= 1 || timer <= 0)) {
         endRound({ end_reason: timer <= 0 ? 'timer' : 'last_alive' });
       }
-      if (!beans[0]?.alive && beans[0] && !beans[0].told) { beans[0].told = true; spectating = true; }
+      // Spectate flag only after tumble finishes (finishFallDeath); don't steal cam mid-fall.
+      if (!beans[0]?.alive && beans[0] && !beans[0].fallingDeath && !beans[0].told) {
+        beans[0].told = true;
+        spectating = true;
+      }
     }
   }
   for (let i = particles.length - 1; i >= 0; i--) {
@@ -1357,17 +1491,23 @@ function loop() {
     }
   }
   const live = beans.filter(b => b.alive);
-  let target = beans[0];
-  if (spectating && live.length) target = live[followIndex % live.length];
+  const localDying = beans.find(b => !b.ai && b.fallingDeath);
+  let target = localDying || beans[0];
+  if (!localDying && spectating && live.length) target = live[followIndex % live.length];
   const focus = target?.p || new THREE.Vector3();
+  const focusLookY = focus.y + (localDying ? 0.4 : 1.1);
   cameraPullback = Math.max(0, cameraPullback - frameDt * 1.8);
   if (slowMo > 0) slowMo = Math.max(0, slowMo - frameDt);
-  // Damped one-shot shake (impulse via punch()); never re-randomize into the follow target each frame.
-  const allowShake = !reduceMotion && (state === 'play' || state === 'over');
+  // Third-person chase yaw: smooth toward hero facing (over-shoulder / behind-bean).
+  const targetYaw = target?.m?.rotation?.y ?? camChaseYaw;
+  camChaseYaw = lerpAngle(camChaseYaw, targetYaw, reduceMotion ? 0.2 : 0.1);
+  // Damped one-shot shake in camera-local space (see punch()); never world-random sway.
+  const allowShake = !reduceMotion && (state === 'play' || state === 'over' || Boolean(localDying));
   if (!allowShake) { shakeVel.set(0, 0, 0); shakeOffset.set(0, 0, 0); cameraPunch = 0; }
   else {
-    shakeOffset.x += shakeVel.x;
-    shakeOffset.y += shakeVel.y;
+    shakeOffset.x += shakeVel.x * frameDt * 60;
+    shakeOffset.y += shakeVel.y * frameDt * 60;
+    shakeOffset.z += shakeVel.z * frameDt * 60;
     shakeVel.multiplyScalar(Math.exp(-frameDt * 14));
     shakeOffset.multiplyScalar(Math.exp(-frameDt * 10));
     cameraPunch = Math.max(0, cameraPunch - frameDt * 2.6);
@@ -1377,16 +1517,29 @@ function loop() {
       shakeVel.set(0, 0, 0);
     }
   }
-  const desired = new THREE.Vector3(focus.x, focus.y + 9, focus.z + 11 + cameraPullback);
-  // Snappy follow when idle; slightly softer only during an active punch.
-  const follow = reduceMotion ? 0.28 : (cameraPunch > 0 ? 0.16 : 0.22);
+  const backDist = (localDying ? 9.5 : 11) + cameraPullback;
+  const height = localDying ? 7.2 : 8.6;
+  const shoulder = localDying ? 0.55 : 1.15;
+  const sinY = Math.sin(camChaseYaw);
+  const cosY = Math.cos(camChaseYaw);
+  // Behind hero along -forward, slight over-shoulder on right.
+  const desired = new THREE.Vector3(
+    focus.x - sinY * backDist + cosY * shoulder,
+    focus.y + height,
+    focus.z - cosY * backDist - sinY * shoulder
+  );
+  const follow = reduceMotion ? 0.28 : (cameraPunch > 0 || localDying ? 0.18 : 0.22);
   if (!freeLook) {
     cam.position.lerp(desired, follow);
-    cam.position.x += shakeOffset.x;
+    // Apply punch in chase-cam local axes: right / up / back along look.
+    const rightX = cosY, rightZ = -sinY;
+    const backX = sinY, backZ = cosY;
+    cam.position.x += rightX * shakeOffset.x + backX * shakeOffset.z * 0.55;
     cam.position.y += shakeOffset.y;
-    cam.lookAt(focus.x, focus.y, focus.z);
+    cam.position.z += rightZ * shakeOffset.x + backZ * shakeOffset.z * 0.55;
+    cam.lookAt(focus.x, focusLookY, focus.z);
   }
-  cam.fov = baseFov + (allowShake ? cameraPunch * 22 : 0);
+  cam.fov = baseFov + (allowShake ? cameraPunch * 18 : 0);
   cam.updateProjectionMatrix();
   if ($('hud')) {
     const spectateText = spectating && target ? ' · 观战：' + target.name : '';
@@ -1416,9 +1569,13 @@ window.__game = {
   get practiceRound() { return practiceRound; },
   get reduceMotion() { return reduceMotion; },
   get cameraPunch() { return cameraPunch; },
+  get camChaseYaw() { return camChaseYaw; },
   get lastJuice() { return lastJuice; },
   get scrambleRevivesLeft() { return scrambleRevivesLeft; },
+  get localFallingDeath() { return beans.find(b => !b.ai && b.fallingDeath) || null; },
+  get assetClips() { return AssetClips; },
   scrambleRevive,
+  beginFallDeath,
   debugPush(bean) { pushBean(bean); },
   continueSpectate,
   spectateNextRound,
