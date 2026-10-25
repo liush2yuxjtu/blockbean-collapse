@@ -6,9 +6,10 @@ import { attachBeanRig, updateBeanRig, triggerBeanPush } from './modules/beanRig
 import { createInputState, readPlayerInput } from './modules/input.js';
 import { formatShareText, randomRoast, setText } from './modules/ui.js';
 import { createPerfTelemetry } from './modules/perfTelemetry.js';
+import { createWebGLRendererWithFallback, probeWebGLContexts, formatRuntimeFallbackReason } from './modules/webglInit.js';
 
 const PLAY_URL = 'https://blockbean-collapse.vercel.app';
-const VERSION = '1.1.2';
+const VERSION = '1.1.3';
 const BALANCE = {
   push: {
     easy: { force: 9, cooldown: 1.05 },
@@ -35,21 +36,29 @@ const __va = (name, data = {}) => {
 };
 const $ = id => document.getElementById(id);
 addEventListener('error', e => __va('client_error', { message: String(e.message || 'error').slice(0, 120) }));
-const showFallback = message => {
+const showFallback = (message, reasonDetail) => {
   setText($('fallbackText'), message);
   if ($('fallback')) $('fallback').hidden = false;
   if ($('start')) $('start').disabled = true;
-  __va('runtime_fallback', { reason: String(message).slice(0, 120) });
+  const reason = String(reasonDetail || message).slice(0, 120);
+  __va('runtime_fallback', { reason });
 };
 let renderer = null;
-try {
-  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
-  if (renderer) renderer.setSize(innerWidth, innerHeight);
-  renderer.shadowMap.enabled = true;
-  document.body.appendChild(renderer.domElement);
-} catch (err) {
-  showFallback('当前浏览器没有可用的 WebGL，已进入可读回退页。请开启硬件加速后再试。');
+let webglProfile = null;
+{
+  const created = createWebGLRendererWithFallback(THREE.WebGLRenderer, __va);
+  renderer = created.renderer;
+  webglProfile = created.profile;
+  if (renderer) {
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
+  } else {
+    const probe = probeWebGLContexts(document);
+    const detail = formatRuntimeFallbackReason(created.error, probe);
+    showFallback('当前浏览器没有可用的 WebGL，已进入可读回退页。请开启硬件加速后再试。', detail);
+  }
 }
 
 const scene = new THREE.Scene();
@@ -116,7 +125,7 @@ if ($('loadbar')) {
 }
 if ($('load')) $('load').textContent = Object.keys(A).length >= 1 ? '关键模型就绪 ✔' : '模型缺失，使用方块替代';
 if ($('start') && renderer) $('start').disabled = false;
-__va('game_load_ready', { loaded_assets: Object.keys(A).length });
+__va('game_load_ready', { loaded_assets: Object.keys(A).length, webgl_profile: webglProfile || 'none' });
 
 const T = 2;
 const GRID = 8;
