@@ -124,7 +124,7 @@ This conflicts with how players treat “I fell = my run is over,” even though
 
 1. **Fall death watch:** when the hero is eliminated by fall/push-off, `beginFallDeath` keeps the mesh tumbling ~0.8–1.5s (`fallingDeathT`) while the chase cam stays on them; **then** `finishFallDeath` → result-first `endRound(local_out)`. Not an instant cut to result/spectate.
 2. **Chase cam + punch:** camera orbits behind the hero using smoothed `camChaseYaw` from bean facing (over-shoulder offset). Impact `punch()` kicks in **camera-local** axes (right / up / back along look), not world-fixed random shake.
-3. **Bean facing:** game forward is local **+Z** (`atan2(mx,mz)`, push ray, chase cam behind `-forward`). Tripo hero/rival GLBs face **-Z**; `attachBeanRig` sets `visual.rotation.y = Math.PI` so the face matches movement. Walk lean / push lunge use the same +Z axis — cam stays behind the back, not the face.
+3. **Bean facing:** game forward is local **+Z** (`atan2(mx,mz)`, push ray, chase cam behind `-forward`). Tripo hero/rival GLBs native face **+X**; `attachBeanRig` sets `visual.rotation.y = -Math.PI / 2` so face maps to +Z (chase from -Z sees the back). Walk lean / push lunge use the same +Z axis — cam stays behind the back, not the face.
 4. **Motion feel without new GLBs:** existing hero/rival GLBs are static (0 skins / 0 clips). `updateBeanMotionFeel` adds procedural lean / run bob / fall stretch on the visual child. `AssetClips` + `AnimationMixer` hooks on `makeBean` so a skinned/animated GLB drop-in works without rewriting gameplay.
 
 ### Exact Tripo asks for `tripo-3d-bot` (do NOT invent GLBs in Codex PRs)
@@ -164,3 +164,7 @@ This conflicts with how players treat “I fell = my run is over,” even though
 ## P0 UX — Cam-relative screen-forward move (2026-10-26)
 
 **Branch `fix/cam-relative-move`.** W/up = +mz (screen forward); touch stick Y inverted into +mz; human wish rotated by `camChaseYaw` into world (AI unchanged). W at yaw≈0 moves +Z, face away from cam, cam stays behind.
+
+## P0 UX — Bean visual yaw -π/2 (2026-10-26)
+
+**Branch `fix/bean-face-yaw-neg90`.** Ortho proved Tripo face is +X (not -Z); `visual.rotation.y = -π/2` maps face→+Z so chase sees back. Cam-relative W/+mz from #19 unchanged.

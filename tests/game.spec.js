@@ -360,7 +360,7 @@ test('death tumble then result; chase cam follows hero yaw', async ({ page }) =>
       && br?.torso && br?.armR;
   })).toBeTruthy();
 
-  // Mesh face correction: Tripo GLBs face local -Z; attachBeanRig rotates visual by PI so face = +Z.
+  // Mesh face correction: Tripo GLB native face +X; attachBeanRig yaw -π/2 maps face → game +Z.
   const visYaw = await page.evaluate(() => {
     const me = window.__game.beans.find(b => b.name === '你');
     let y = me.m.userData.rig.visual.rotation.y;
@@ -368,7 +368,11 @@ test('death tumble then result; chase cam follows hero yaw', async ({ page }) =>
     while (y < -Math.PI) y += Math.PI * 2;
     return y;
   });
-  expect(Math.abs(Math.abs(visYaw) - Math.PI)).toBeLessThan(0.08);
+  // Normalize wrap: accept -π/2 or equivalent within 0.08.
+  let dVis = visYaw + Math.PI / 2;
+  while (dVis > Math.PI) dVis -= Math.PI * 2;
+  while (dVis < -Math.PI) dVis += Math.PI * 2;
+  expect(Math.abs(dVis)).toBeLessThan(0.08);
 
   // Push aims along bean forward (local +Z): rival on +Z at yaw 0 must get hit.
   await page.evaluate(() => {
@@ -509,7 +513,7 @@ test('W screen-forward moves +Z with cam behind at yaw≈0', async ({ page }) =>
   await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 10_000 })
     .toBe('play');
 
-  // Mesh face correction stays: visual.rotation.y ≈ π.
+  // Mesh face correction stays: visual.rotation.y ≈ -π/2 (native +X → game +Z).
   const visYaw = await page.evaluate(() => {
     const me = window.__game.beans.find(b => b.name === '你');
     let y = me.m.userData.rig.visual.rotation.y;
@@ -517,7 +521,10 @@ test('W screen-forward moves +Z with cam behind at yaw≈0', async ({ page }) =>
     while (y < -Math.PI) y += Math.PI * 2;
     return y;
   });
-  expect(Math.abs(Math.abs(visYaw) - Math.PI)).toBeLessThan(0.08);
+  let dVis = visYaw + Math.PI / 2;
+  while (dVis > Math.PI) dVis -= Math.PI * 2;
+  while (dVis < -Math.PI) dVis += Math.PI * 2;
+  expect(Math.abs(dVis)).toBeLessThan(0.08);
 
   const before = await page.evaluate(() => {
     const me = window.__game.beans.find(b => b.name === '你');
