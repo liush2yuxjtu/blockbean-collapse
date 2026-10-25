@@ -49,3 +49,62 @@
 - Console 无报错；~60fps on desktop  
 
 **Wave acceptance:** see each item under [TRIAGE_WAVES.md](./TRIAGE_WAVES.md) (Wave 1–3 · Spread · Engineering · Juice · Micro · Onboarding / Retention / Social clip / Balance / Accessibility / Modes / Maps / Audio / Monetization / Spectator / Ops).
+
+## P0 HOTFIX — `round_end` almost never fires (2026-10-26 telemetry)
+
+**Evidence (Vercel custom events, 2026-10-01→10-26):** `game_start` visitors=4 / count=5 · `player_eliminated` visitors=3 / count=5 · **`round_end` visitors=1 / count=1** · `return_to_lobby`=0 · share events=0.
+
+### Why (root cause — not “Insights broken”)
+
+`round_end` is **only** emitted inside `endRound()`, and `endRound()` runs only when the **match** resolves:
+
+- `alive.length <= 1`, or
+- `timer <= 0`
+
+When the **local player** falls (`y < -15`), code only:
+
+1. sets `alive=false`, enters **spectate**, flashes “你出局了！观战中”
+2. fires **`player_eliminated`**
+3. does **not** call `endRound()` / does **not** show the result card
+
+So the common path is: start → die → spectate briefly → **close tab**. Tab close never hits `endRound`, so **`round_end` never fires**. That also starves share (S1) and retention tips that live on the result screen.
+
+Secondary amplifiers:
+
+1. **Practice first run** (`practiceRound`): no tile collapse, bots don’t push → hard to force a natural end except waiting full `roundSeconds` (default 30s) or walking off yourself. Many leave mid-practice.
+2. **`quitToLobby`** (pause hold-quit) sets `state='menu'` and fires `return_to_lobby` **without** `round_end` / abandon (telemetry showed 0 returns; still a hole).
+3. No `pagehide` / `visibilitychange` **abandon** beacon.
+
+This conflicts with how players treat “I fell = my run is over,” even though Spectator **C1** wants optional post-out watching.
+
+### Product decision (lock for Codex)
+
+**Result-first, spectate-optional** (keeps C1, fixes funnel):
+
+1. On **local** elimination during `play` (or practice): call a single path that:
+   - shows the **result card immediately** (lose / practice-complete as today)
+   - fires **`round_end` once** with existing payload fields plus `end_reason: 'local_out' | 'last_alive' | 'timer' | 'practice_done'`
+   - offers primary **再来一局** and secondary **继续观战** (C1 cycle survivors). Spectate must not require waiting for `round_end`.
+2. If the player chooses **继续观战** and later the match resolves, fire **`match_end`** (new, optional) with final `winner` / `alive` — do **not** double-count as a second `round_end`.
+3. Practice: end when **local falls** OR **player lands ≥1 push** OR **15s elapsed** (whichever first) → `round_end` with `result:'practice'`. Do not require full 30s with no collapse.
+4. Instrumentation hygiene (same PR):
+   - `pagehide` / `visibilitychange`(hidden) while `state` in `count|play` or spectating-after-out without having fired `round_end` → `__va('round_abandon', { state, survival_s, practice })`
+   - `quitToLobby` → same `round_abandon` if no `round_end` yet
+   - `endRound` must be idempotent (`if (state === 'over') return` after first fire)
+
+### Acceptance
+
+- [ ] Local fall in a real round → result card visible **without** waiting for last bean / timer; **exactly one** `round_end` with `end_reason:'local_out'`, `result:'lose'`.
+- [ ] “继续观战” still cycles survivors (C1); finishing the match while spectating emits `match_end` (not a second `round_end`).
+- [ ] Practice ends within ≤15s or on first local fall / first player push; emits `round_end` `result:'practice'`.
+- [ ] Close tab mid-round (before result) → `round_abandon` observed in Vercel within a test session.
+- [ ] Playwright (or manual): load → start → walk off map → assert result UI + `round_end` path (hook `__va` or DOM).
+- [ ] After fix, expect `round_end` count ≳ `player_eliminated` (local) over a few human sessions; share buttons reachable again.
+
+### Out of scope this hotfix
+
+- Reworking C2–C5 HUD polish beyond the “继续观战” entry.
+- Fixing `audio_unlock` spam (separate Ops note; every keydown currently re-fires).
+- Investigating `runtime_fallback` WebGL rate (separate).
+
+**Implement in** `game.js` (+ Playwright if T2 harness exists). Docs: sync this section; mark TRIAGE Spectator C1 note = result-first.

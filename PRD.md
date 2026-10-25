@@ -347,7 +347,7 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 
 | ID | Item | Codex acceptance（摘要） |
 |----|------|--------------------------|
-| **C1** | After out: cycle survivors | 出局后可循环切换存活豆；局继续至真正胜者 |
+| **C1** | After out: cycle survivors | **先出结果再观战**：本地出局立刻结果页 + `round_end`；次要按钮「继续观战」再切存活豆（见 CODEX_HANDOFF P0 HOTFIX） |
 | **C2** | Spec HUD: alive count + next collapse tip | 观战 HUD：存活数 + 下一塌提示；不挡视线 |
 | **C3** | Soft follow cam + optional free look | 柔和跟随相机；可选自由看；默认不晕 |
 | **C4** | Caption strip for big moments | 大场面（连推/终局）字幕条；可关 |
