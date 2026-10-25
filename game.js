@@ -321,6 +321,11 @@ let bgm = null;
 let bgmGain = null;
 // O2: soften the first round so new players can learn movement, jumping, and pushing.
 let practiceRound = localStorage.getItem('blockbean_practice_done') !== '1';
+let roundEndFired = false;
+let matchEndFired = false;
+let abandonFired = false;
+let watchingAfterLocalOut = false;
+let lastEndReason = null;
 
 const dayKey = (date = new Date()) => date.toISOString().slice(0, 10);
 function dailyStats(key = dayKey()) {
@@ -532,7 +537,15 @@ function reset() {
   paused = false;
   spectating = false;
   followIndex = 0;
+  roundEndFired = false;
+  matchEndFired = false;
+  abandonFired = false;
+  watchingAfterLocalOut = false;
+  lastEndReason = null;
   if ($('result')) $('result').hidden = true;
+  if ($('continueSpectateBtn')) $('continueSpectateBtn').hidden = true;
+  if ($('resultLeaveBtn')) $('resultLeaveBtn').hidden = true;
+  setSpectateExitUi(false);
   if ($('contextTip')) { $('contextTip').hidden = true; $('contextTip').textContent = ''; }
   if ($('pauseOverlay')) $('pauseOverlay').hidden = true;
   flash(practiceRound ? (language === 'zh' ? '练习局：先熟悉移动、跳跃和推人' : 'Practice: learn movement, jumping, and pushing') : '3', practiceRound ? 2.2 : 1);
@@ -697,23 +710,101 @@ function physics(b, dt) {
       spectating = true;
       slowMo = 1.1;
       cameraPullback = 3;
-      flash('你出局了！观战中', 2);
       playSfx('out');
       __va('player_eliminated', { survival_s: Math.round((performance.now() - roundStart) / 1000), cause: 'fell' });
+      // Result-first: local fall ends the player's run immediately (spectate optional).
+      endRound({ end_reason: practiceRound ? 'practice_done' : 'local_out' });
     } else {
       flash(`${b.name} 出局！`, 0.8);
     }
   }
   b.m.position.copy(b.p);
 }
-function endRound() {
-  const practiceComplete = practiceRound;
+function survivalSeconds() {
+  if (!roundStart) return 0;
+  return Math.max(0, Math.round((performance.now() - roundStart) / 1000));
+}
+function maybeAbandonRound() {
+  if (roundEndFired || abandonFired) return;
+  if (!(state === 'count' || state === 'play' || (spectating && !roundEndFired))) return;
+  abandonFired = true;
+  __va('round_abandon', { state, survival_s: survivalSeconds(), practice: practiceRound });
+}
+function setSpectateExitUi(show) {
+  if ($('spectateNextBtn')) $('spectateNextBtn').hidden = !show;
+  if ($('spectateLeaveBtn')) $('spectateLeaveBtn').hidden = !show;
+}
+function continueSpectate() {
+  if (!roundEndFired) return;
+  watchingAfterLocalOut = true;
+  spectating = true;
+  state = 'play';
+  if ($('result')) $('result').hidden = true;
+  if ($('continueSpectateBtn')) $('continueSpectateBtn').hidden = true;
+  setSpectateExitUi(true);
+  flash(language === 'zh' ? '观战中 · R 再来一局 · 可退出大厅' : 'Spectating · R next · Leave available', 2.4);
+  __va('spectate_continue', { alive: beans.filter(b => b.alive).length });
+  cycleSpectator();
+}
+function spectateNextRound() {
+  __va('spectate_next', {});
+  reset();
+}
+function tearDownToLobby({ event = 'return_to_lobby', data = {} } = {}) {
+  maybeAbandonRound();
+  paused = false;
+  state = 'menu';
+  spectating = false;
+  watchingAfterLocalOut = false;
+  beans.forEach(b => scene.remove(b.m));
+  beans = [];
+  if (spike) scene.remove(spike.m);
+  if ($('result')) $('result').hidden = true;
+  if ($('pauseOverlay')) $('pauseOverlay').hidden = true;
+  setSpectateExitUi(false);
+  $('splash')?.remove();
+  const splash = document.createElement('div');
+  splash.id = 'splash';
+  splash.innerHTML = '<h1>方块豆人：塌了就出局</h1><p>已回到大厅。选择设置后重新开始。</p><button id="startLobby">开始 / Start</button>';
+  document.body.appendChild(splash);
+  $('startLobby')?.addEventListener('click', () => { splash.remove(); reset(); });
+  __va(event, data);
+}
+function leaveSpectateToLobby() {
+  const payload = { survival_s: survivalSeconds() };
+  __va('spectate_leave', payload);
+  tearDownToLobby({ event: 'return_to_lobby', data: {} });
+}
+function endRound({ end_reason } = {}) {
   const alive = beans.filter(b => b.alive);
-  alive.forEach(b => points[b.name] += 10);
-  const winner = alive.length === 1 ? alive[0].name : alive.sort((a, c) => points[c.name] - points[a.name])[0]?.name || '无人';
+  if (roundEndFired) {
+    if (watchingAfterLocalOut && !matchEndFired) {
+      matchEndFired = true;
+      const winner = alive.length === 1 ? alive[0].name : alive.sort((a, c) => points[c.name] - points[a.name])[0]?.name || '无人';
+      __va('match_end', { winner, alive: alive.length, end_reason: end_reason || (timer <= 0 ? 'timer' : 'last_alive') });
+      flash(language === 'zh' ? `对局结束 · 获胜者 ${winner}` : `Match over · winner ${winner}`, 2.5);
+      setSpectateExitUi(true);
+    }
+    return;
+  }
+  const practiceComplete = practiceRound;
+  let reason = end_reason;
+  if (!reason) {
+    if (practiceComplete) reason = 'practice_done';
+    else if (timer <= 0) reason = 'timer';
+    else reason = 'last_alive';
+  }
+  lastEndReason = reason;
+  roundEndFired = true;
+  const earlyLocalOut = reason === 'local_out';
+  // Defer survival bonuses until the match fully resolves (not on early local-out).
+  if (!earlyLocalOut) alive.forEach(b => points[b.name] += 10);
+  const winner = earlyLocalOut
+    ? (language === 'zh' ? '对局进行中' : 'in progress')
+    : (alive.length === 1 ? alive[0].name : alive.sort((a, c) => points[c.name] - points[a.name])[0]?.name || '无人');
   const meScore = points['你'] || 0;
-  const won = !practiceComplete && winner === '你';
-  roundDuration = Math.max(0, Math.round((performance.now() - roundStart) / 1000));
+  const won = !practiceComplete && !earlyLocalOut && winner === '你';
+  roundDuration = survivalSeconds();
   const yesterday = yesterdayStats();
   const today = saveDailyStats(meScore);
   if (practiceComplete) {
@@ -745,6 +836,7 @@ function endRound() {
   }
   const roast = randomRoast();
   const tip = practiceComplete ? '' : firstResultTip(won ? 'win' : 'out');
+  const canContinueSpectate = earlyLocalOut && alive.length > 0;
   flash(practiceComplete ? (language === 'zh' ? '练习完成！点击再来一局进入正式局' : 'Practice complete! Start again for the real round') : (won ? '🏆 你赢了！' : '你出局了！'), 999);
   if ($('result')) {
     $('resultTitle').textContent = practiceComplete ? (language === 'zh' ? '练习完成！' : 'Practice complete!') : (won ? (language === 'zh' ? '🏆 你赢了！' : '🏆 You win!') : (language === 'zh' ? '你出局了！' : 'You are out'));
@@ -765,11 +857,20 @@ function endRound() {
     if ($('clipStatus')) $('clipStatus').textContent = '近 10 秒本地事件缓冲已就绪，可下载分享卡。';
     if ($('clipHandle')) $('clipHandle').value = clipHandle;
     if ($('tipActions')) $('tipActions').hidden = !tip;
+    if ($('continueSpectateBtn')) $('continueSpectateBtn').hidden = !canContinueSpectate;
+    if ($('resultLeaveBtn')) $('resultLeaveBtn').hidden = false;
     $('result').hidden = false;
   }
+  setSpectateExitUi(spectating || earlyLocalOut);
   __va('round_end', {
-    result: practiceComplete ? 'practice' : (won ? 'win' : 'lose'), winner, push_score: meScore, alive: alive.length,
-    duration_s: roundDuration, push_count: pushCount, best_streak: bestStreak
+    result: practiceComplete ? 'practice' : (won ? 'win' : 'lose'),
+    winner: earlyLocalOut ? 'none' : winner,
+    push_score: meScore,
+    alive: alive.length,
+    duration_s: roundDuration,
+    push_count: pushCount,
+    best_streak: bestStreak,
+    end_reason: reason
   });
   syncSettings();
 }
@@ -871,7 +972,10 @@ addEventListener('keydown', e => {
   if (e.code === 'Space') e.preventDefault();
   if (e.code === 'Escape') { e.preventDefault(); togglePause(); }
   if (e.code === 'Tab' && spectating) { e.preventDefault(); cycleSpectator(); }
-  if (e.code === 'KeyR' && state === 'over') reset();
+  if (e.code === 'KeyR' && (state === 'over' || spectating)) {
+    if (spectating) __va('spectate_next', {});
+    reset();
+  }
   unlockAudio();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
@@ -905,7 +1009,14 @@ setTimeout(() => {
 $('langBtn')?.addEventListener('click', toggleLanguage);
 $('motionBtn')?.addEventListener('click', toggleMotion);
 applyLanguage();
-$('replayBtn')?.addEventListener('click', reset);
+$('replayBtn')?.addEventListener('click', () => {
+  if (spectating || watchingAfterLocalOut) __va('spectate_next', {});
+  reset();
+});
+$('continueSpectateBtn')?.addEventListener('click', continueSpectate);
+$('resultLeaveBtn')?.addEventListener('click', leaveSpectateToLobby);
+$('spectateNextBtn')?.addEventListener('click', spectateNextRound);
+$('spectateLeaveBtn')?.addEventListener('click', leaveSpectateToLobby);
 $('copyBtn')?.addEventListener('click', async () => {
   const text = $('shareText')?.value || PLAY_URL;
   try {
@@ -926,20 +1037,16 @@ setTimeout(() => {
 }, 5000);
 let quitTimer = null;
 const quitToLobby = () => {
-  if (!paused) return;
-  paused = false; state = 'menu';
-  beans.forEach(b => scene.remove(b.m)); beans = [];
-  if (spike) scene.remove(spike.m);
-  $('pauseOverlay') && ($('pauseOverlay').hidden = true);
-  $('splash')?.remove();
-  const splash = document.createElement('div');
-  splash.id = 'splash'; splash.innerHTML = '<h1>方块豆人：塌了就出局</h1><p>已回到大厅。选择设置后重新开始。</p><button id="startLobby">开始 / Start</button>';
-  document.body.appendChild(splash);
-  $('startLobby')?.addEventListener('click', () => { splash.remove(); reset(); });
-  __va('return_to_lobby', {});
+  if (!paused && !spectating && state !== 'over') return;
+  tearDownToLobby({ event: 'return_to_lobby' });
 };
 $('quitHold')?.addEventListener('pointerdown', () => { quitTimer = setTimeout(quitToLobby, 900); });
 ['pointerup','pointercancel','pointerleave'].forEach(event => $('quitHold')?.addEventListener(event, () => { if (quitTimer) clearTimeout(quitTimer); quitTimer = null; }));
+const abandonBeacon = () => maybeAbandonRound();
+addEventListener('pagehide', abandonBeacon);
+addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') abandonBeacon();
+});
 
 let frameDt = 0.016;
 const clock = new THREE.Clock();
@@ -961,7 +1068,7 @@ function loop() {
     if ($('msg')) $('msg').textContent = countdown > 0 ? Math.ceil(countdown) : 'GO!';
     beans.forEach(b => physics(b, dt));
     // Resolve deterministic test/debug falls during the countdown as well as during play.
-    if (beans.length && beans.filter(b => b.alive).length <= 1) endRound();
+    if (beans.length && beans.filter(b => b.alive).length <= 1) endRound({ end_reason: practiceRound ? 'practice_done' : 'last_alive' });
     if (countdown <= 0 && state === 'count') {
       state = 'play';
       roundStart = performance.now();
@@ -1041,8 +1148,13 @@ function loop() {
     if (ghostT <= 0) ghostT = 0.22;
     if (state === 'play') {
       const alive = beans.filter(b => b.alive);
-      if (alive.length <= 1 || timer <= 0) endRound();
-      if (!beans[0].alive && !beans[0].told) { beans[0].told = true; spectating = true; }
+      const practiceElapsed = roundStart ? (performance.now() - roundStart) / 1000 : 0;
+      if (practiceRound && !roundEndFired && (pushCount >= 1 || practiceElapsed >= 15)) {
+        endRound({ end_reason: 'practice_done' });
+      } else if (alive.length <= 1 || timer <= 0) {
+        endRound({ end_reason: timer <= 0 ? 'timer' : 'last_alive' });
+      }
+      if (!beans[0]?.alive && beans[0] && !beans[0].told) { beans[0].told = true; spectating = true; }
     }
   }
   for (let i = particles.length - 1; i >= 0; i--) {
@@ -1079,5 +1191,19 @@ function loop() {
   }
   if (renderer) renderer.render(scene, cam);
 }
-window.__game = { get state() { return state; }, get beans() { return beans; }, get tiles() { return tiles; }, get points() { return points; }, get spectating() { return spectating; } };
+window.__game = {
+  get state() { return state; },
+  get beans() { return beans; },
+  get tiles() { return tiles; },
+  get points() { return points; },
+  get spectating() { return spectating; },
+  get roundEndFired() { return roundEndFired; },
+  get watchingAfterLocalOut() { return watchingAfterLocalOut; },
+  get lastEndReason() { return lastEndReason; },
+  get practiceRound() { return practiceRound; },
+  continueSpectate,
+  spectateNextRound,
+  leaveSpectateToLobby,
+  reset
+};
 loop();
