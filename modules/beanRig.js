@@ -36,6 +36,10 @@ export function attachBeanRig(root, visual, { color = 0x7ec8ff, hero = false } =
   torso.name = 'torso';
 
   if (visual.parent) visual.parent.remove(visual);
+  // Game forward = local +Z (pushBean / camChase). Tripo hero/rival GLBs face -Z;
+  // rotate the static visual once so the face points along movement / camera-forward.
+  // Rig limbs + lean stay in +Z-forward space; chase cam stays behind the back.
+  visual.rotation.y = Math.PI;
   torso.add(visual);
 
   // Approximate attachment points for a ~1.4-tall fitted bean.
@@ -201,15 +205,15 @@ function poseIdle(b, rig, dt) {
 }
 
 function posePush(rig, t01) {
-  // Wind-up then lunge: arms forward, torso tips.
+  // Wind-up then lunge: arms toward local +Z (game forward), torso tips.
   const wind = Math.sin(Math.min(1, t01) * Math.PI);
-  rig.armL.rotation.x = -0.9 * wind;
-  rig.armR.rotation.x = -1.1 * wind;
+  rig.armL.rotation.x = 0.9 * wind;
+  rig.armR.rotation.x = 1.1 * wind;
   softToward(rig.armL.rotation, 'z', 0.05, 1);
   softToward(rig.armR.rotation, 'z', -0.05, 1);
-  rig.legL.rotation.x = 0.25 * wind;
-  softToward(rig.legR.rotation, 'x', -0.15 * wind, 1);
-  rig.torso.rotation.y = 0.12 * wind;
+  rig.legL.rotation.x = -0.25 * wind;
+  softToward(rig.legR.rotation, 'x', 0.15 * wind, 1);
+  softToward(rig.torso.rotation, 'y', 0.12 * wind, 1);
   rig.hips.position.z = 0.12 * wind;
 }
 
