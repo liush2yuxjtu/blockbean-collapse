@@ -421,20 +421,29 @@ test('death tumble then result; chase cam follows hero yaw', async ({ page }) =>
     return Math.abs(d);
   }), { timeout: 5_000 }).toBeLessThan(0.55);
 
-  // Walk lean: hold forward, assert lean + walk clip + limb swing on the code rig.
+  // Walk lean: hold screen-forward (W → +Z at yaw≈0), assert lean + walk clip + limb swing.
   await page.evaluate(() => {
     const me = window.__game.beans.find(b => b.name === '你');
+    me.m.rotation.y = 0;
     me.p.set(0, Math.max(me.p.y, 0), 0);
     me.m.position.copy(me.p);
     me.v.set(0, 0, 4);
+    me.steerX = 0;
     me.steerZ = 1;
     me.ground = true;
     me.leanPitch = 0;
     me.m.userData.rig.phase = 0.5;
     me.m.userData.rig.clip = 'idle';
   });
-  // Hold S (+Z): bean yaw should face +Z, lean tips along local +Z (run dir), limbs swing.
-  await page.keyboard.down('KeyS');
+  // Settle chase yaw back to ~0 so cam-relative W maps to world +Z.
+  await expect.poll(() => page.evaluate(() => {
+    let y = window.__game.camChaseYaw;
+    while (y > Math.PI) y -= Math.PI * 2;
+    while (y < -Math.PI) y += Math.PI * 2;
+    return Math.abs(y);
+  }), { timeout: 5_000 }).toBeLessThan(0.55);
+  // Hold W (screen forward / +Z at camChaseYaw≈0): bean yaw faces +Z, lean along run dir.
+  await page.keyboard.down('KeyW');
   await expect.poll(() => page.evaluate(() => {
     const me = window.__game.beans.find(b => b.name === '你');
     const rig = me?.m?.userData?.rig;
@@ -452,7 +461,7 @@ test('death tumble then result; chase cam follows hero yaw', async ({ page }) =>
     const leanFwd = me.leanPitch > 0.04 && rig.torso.rotation.x > 0.03;
     return facesRunDir && leanFwd && (rig.clip === 'walk' || limbSwing > 0.12) && limbSwing > 0.08;
   }), { timeout: 5_000 }).toBeTruthy();
-  await page.keyboard.up('KeyS');
+  await page.keyboard.up('KeyW');
 
   // Fall tumble uses code rig tumble root + fall clip (death watch before result).
   const tumbleBefore = await page.evaluate(() => {
@@ -485,6 +494,74 @@ test('death tumble then result; chase cam follows hero yaw', async ({ page }) =>
 
   // Asset clip hook map exists for Tripo swap.
   await expect.poll(() => page.evaluate(() => typeof window.__game?.assetClips === 'object')).toBeTruthy();
+
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});
+
+test('W screen-forward moves +Z with cam behind at yaw≈0', async ({ page }) => {
+  test.setTimeout(60_000);
+  const { pageErrors, start, fallback } = await bootGame(page, { practiceDone: true });
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    return;
+  }
+  await start.click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 10_000 })
+    .toBe('play');
+
+  // Mesh face correction stays: visual.rotation.y ≈ π.
+  const visYaw = await page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    let y = me.m.userData.rig.visual.rotation.y;
+    while (y > Math.PI) y -= Math.PI * 2;
+    while (y < -Math.PI) y += Math.PI * 2;
+    return y;
+  });
+  expect(Math.abs(Math.abs(visYaw) - Math.PI)).toBeLessThan(0.08);
+
+  const before = await page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    me.m.rotation.y = 0;
+    me.p.set(0, Math.max(me.p.y, 0.5), 0);
+    me.m.position.copy(me.p);
+    me.v.set(0, 0, 0);
+    me.steerX = 0;
+    me.steerZ = 0;
+    me.ground = true;
+    me.alive = true;
+    return { z: me.p.z, yaw: window.__game.camChaseYaw };
+  });
+  await page.waitForTimeout(400);
+  // Ensure chase yaw settled near 0 before holding W.
+  await expect.poll(() => page.evaluate(() => {
+    let y = window.__game.camChaseYaw;
+    while (y > Math.PI) y -= Math.PI * 2;
+    while (y < -Math.PI) y += Math.PI * 2;
+    return Math.abs(y);
+  }), { timeout: 3_000 }).toBeLessThan(0.55);
+
+  await page.keyboard.down('KeyW');
+  await expect.poll(() => page.evaluate((z0) => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    if (!me) return false;
+    me.ground = true;
+    let face = me.m.rotation.y;
+    while (face > Math.PI) face -= Math.PI * 2;
+    while (face < -Math.PI) face += Math.PI * 2;
+    const yaw = window.__game.camChaseYaw;
+    const sinY = Math.sin(yaw);
+    const cosY = Math.cos(yaw);
+    const backDist = 11;
+    const shoulder = 1.15;
+    const camX = me.p.x - sinY * backDist + cosY * shoulder;
+    const camZ = me.p.z - cosY * backDist - sinY * shoulder;
+    const forward = { x: Math.sin(me.m.rotation.y), z: Math.cos(me.m.rotation.y) };
+    const dx = camX - me.p.x;
+    const dz = camZ - me.p.z;
+    const behindDot = -(dx * forward.x + dz * forward.z);
+    return me.p.z > z0 + 0.35 && Math.abs(face) < 0.7 && behindDot > 0.5;
+  }, before.z), { timeout: 5_000 }).toBeTruthy();
+  await page.keyboard.up('KeyW');
 
   expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
 });

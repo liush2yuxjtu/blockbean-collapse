@@ -5,8 +5,9 @@ export const createInputState = () => ({
 export const readPlayerInput = (input, binding) => {
   const key = code => Boolean(input.keys[code]);
   // Keyboard is digital; touch stick is analog (-1..1). Combined vector is smoothed in control().
+  // Screen-forward: W/up = +mz (toward top of screen / camera look direction after cam-relative wish).
   const mx = (key(binding.right) ? 1 : 0) - (key(binding.left) ? 1 : 0) + input.touch.x;
-  const mz = (key(binding.down) ? 1 : 0) - (key(binding.up) ? 1 : 0) + input.touch.z;
+  const mz = (key(binding.up) ? 1 : 0) - (key(binding.down) ? 1 : 0) + input.touch.z;
   const push = binding.push.some(code => code === 'Mouse0' ? input.mousePush : code === 'Mouse1' ? input.mousePush2 : key(code));
   return { mx, mz, jump: key(binding.jump) || input.touch.jump, push };
 };
