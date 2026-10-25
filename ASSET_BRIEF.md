@@ -188,3 +188,13 @@ Each folder also has `preview.png`. Gallery master copies + raws live under `/wo
 ## Wave 3 credit gate
 
 The four Wave 3 assets used 80 Tripo credits in total (20 each), below the 200-credit confirmation threshold. No additional Tripo generation is part of this code pass. Existing GLBs remain uncompressed and are wired through selectable theme and starter-skin fallbacks.
+
+
+---
+
+## Follow-up — Skinned + clips (for tripo-3d-bot, not Codex)
+
+See **CODEX_HANDOFF.md → P0 UX — Death tumble + chase cam + Tripo skinned beans**.
+
+Needed: `hero_blockbean_skinned`, `rival_blockbean_skinned`, clips `idle` / `walk` / `push` / `fall`.  
+Runtime already stores `AssetClips` from GLTF `animations` and attaches `AnimationMixer` in `makeBean`. **Do not generate in feel/camera PRs.**
