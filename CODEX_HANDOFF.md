@@ -86,6 +86,11 @@ This conflicts with how players treat “I fell = my run is over,” even though
    - fires **`round_end` once** with existing payload fields plus `end_reason: 'local_out' | 'last_alive' | 'timer' | 'practice_done'`
    - offers primary **再来一局** and secondary **继续观战** (C1 cycle survivors). Spectate must not require waiting for `round_end`.
 2. If the player chooses **继续观战** and later the match resolves, fire **`match_end`** (new, optional) with final `winner` / `alive` — do **not** double-count as a second `round_end`.
+2b. **Leave spectate early (user ask 2026-10-26):** while spectating after local out (result shown or skipped into spectate), always offer:
+   - **再来一局 / Next** → `reset()` immediately (do not wait for last bean / timer); fire `__va('spectate_next', {})` then start next round.
+   - **退出 / Leave** → same as lobby quit: tear down round → splash/lobby; fire `__va('spectate_leave', { survival_s })` (and `round_abandon` only if `round_end` never fired).
+   - Keyboard: **R** = next round even while spectating (not only when `state==='over'`); **Esc** pause still works; confirm-quit can map to Leave.
+   - Must work from result card *and* from in-spectate HUD (button or hold-quit), so the player is never trapped watching bots.
 3. Practice: end when **local falls** OR **player lands ≥1 push** OR **15s elapsed** (whichever first) → `round_end` with `result:'practice'`. Do not require full 30s with no collapse.
 4. Instrumentation hygiene (same PR):
    - `pagehide` / `visibilitychange`(hidden) while `state` in `count|play` or spectating-after-out without having fired `round_end` → `__va('round_abandon', { state, survival_s, practice })`
@@ -96,6 +101,8 @@ This conflicts with how players treat “I fell = my run is over,” even though
 
 - [ ] Local fall in a real round → result card visible **without** waiting for last bean / timer; **exactly one** `round_end` with `end_reason:'local_out'`, `result:'lose'`.
 - [ ] “继续观战” still cycles survivors (C1); finishing the match while spectating emits `match_end` (not a second `round_end`).
+- [ ] During spectate: **再来一局** / **R** starts next round immediately; **退出** returns to lobby/splash; player is never stuck watching until last bean.
+- [ ] `spectate_next` / `spectate_leave` events fire on those actions.
 - [ ] Practice ends within ≤15s or on first local fall / first player push; emits `round_end` `result:'practice'`.
 - [ ] Close tab mid-round (before result) → `round_abandon` observed in Vercel within a test session.
 - [ ] Playwright (or manual): load → start → walk off map → assert result UI + `round_end` path (hook `__va` or DOM).

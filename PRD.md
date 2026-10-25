@@ -351,7 +351,7 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 | **C2** | Spec HUD: alive count + next collapse tip | 观战 HUD：存活数 + 下一塌提示；不挡视线 |
 | **C3** | Soft follow cam + optional free look | 柔和跟随相机；可选自由看；默认不晕 |
 | **C4** | Caption strip for big moments | 大场面（连推/终局）字幕条；可关 |
-| **C5** | Return-to-lobby without killing round view | 回大厅不强制掐断观战画面（或明确确认）；局逻辑不因误触结束错乱 |
+| **C5** | Return-to-lobby / leave spectate early | 观战可提前结束：**再来一局 (R)** 或 **退出回大厅**；勿锁死等到最后一豆；误触仍需确认（见 CODEX P0） |
 
 **Scheduling:** 与 Wave 2 #10 **对齐/扩展**；可并行；勿挡手感。
 
@@ -597,7 +597,7 @@ Hook rule: **first 3 seconds must show collapse or push-off** so Douyin / Bilibi
 - [ ] C2 Spec HUD  
 - [ ] C3 Soft follow cam + free look  
 - [ ] C4 Caption strip  
-- [ ] C5 Return-to-lobby without killing round view  
+- [ ] C5 Leave spectate early (Next / Leave) + safe return to lobby  
 
 ### Ops（open — K1–K5）
 
