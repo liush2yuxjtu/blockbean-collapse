@@ -112,7 +112,7 @@ This conflicts with how players treat “I fell = my run is over,” even though
 
 - Reworking C2–C5 HUD polish beyond the “继续观战” entry.
 - [x] `audio_unlock` fires once per page load (`audioUnlockEvented` guard in `unlockAudio`; still resumes AudioContext when suspended).
-- Investigating `runtime_fallback` WebGL rate (separate).
+- [x] Resilient WebGL init profiles (`fix/webgl-init-fallback`) to cut false `runtime_fallback`.
 
 **Implement in** `game.js` (+ Playwright if T2 harness exists). Docs: sync this section; mark TRIAGE Spectator C1 note = result-first.
 
@@ -177,3 +177,6 @@ This conflicts with how players treat “I fell = my run is over,” even though
 
 **Branch `fix/audio-unlock-once`.** `unlockAudio()` still resumes a suspended AudioContext on every gesture, but `__va('audio_unlock', { first: true })` fires only once per page load via `audioUnlockEvented`.
 
+## Ops — resilient WebGL init (2026-10-26)
+
+**Branch `fix/webgl-init-fallback`.** Try WebGLRenderer profiles `hi`→`default`→`noaa`→`bare` before `showFallback`; `__va('webgl_profile')` + enriched `runtime_fallback` reason (`webgl2=0,webgl=0,err=…`).
