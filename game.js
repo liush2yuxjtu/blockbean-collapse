@@ -10,10 +10,19 @@ import { attachBeanRig, updateBeanRig, triggerBeanPush } from './modules/beanRig
 import { createInputState, readPlayerInput } from './modules/input.js';
 import { formatShareText, randomRoast, setText } from './modules/ui.js';
 import { createPerfTelemetry } from './modules/perfTelemetry.js';
+import {
+  localHumanBean, trimRoundEvents, makeSnapshotEvent, makeTileEvent, makeActionEvent,
+  buildReplayPackage, saveReplayToStorage, loadReplayFromStorage, hasReplayPackage,
+  eventsDue, sampleGhostPose, replayDurationMs, SNAPSHOT_INTERVAL_MS, REPLAY_LS_KEY
+} from './modules/lastReplay.js';
 import { createWebGLRendererWithFallback, probeWebGLContexts, formatRuntimeFallbackReason } from './modules/webglInit.js';
 
 const PLAY_URL = 'https://blockbean-collapse.vercel.app';
-const VERSION = '1.1.6';
+const VERSION = '1.1.7';
+if (typeof document !== 'undefined') {
+  const bb = document.getElementById('buildBanner');
+  if (bb) bb.textContent = 'BlockBean v' + VERSION + ' · build main';
+}
 const BALANCE = {
   push: {
     easy: { force: 9, cooldown: 1.05 },
@@ -383,6 +392,14 @@ let tipSuppressed = localStorage.getItem('blockbean_tip_never') === '1';
 let returnVisit = false;
 let roundEvents = [];
 let lastEventAt = 0;
+let lastReplayPackage = null;
+try { lastReplayPackage = loadReplayFromStorage(localStorage); } catch (_) { lastReplayPackage = null; }
+let replayMode = false;
+let replayPkg = null;
+let replayT = 0;
+let replayLastT = -1;
+let replayEnded = false;
+let replayFromResult = false;
 let clipReady = false;
 let clipHandle = localStorage.getItem('blockbean_handle') || '';
 let hazardRainT = 3;
@@ -637,6 +654,12 @@ function firstResultTip(kind) {
 function reset() {
   readSettings();
   if (skin === 'mint' && !SkinProto && !flags.forceFallbackAssets) loadAsset('skin_mint').then(s => { SkinProto = cloneFitted(s, 1.4, 0x9be7c4); });
+  if (replayMode) {
+    replayMode = false;
+    replayPkg = null;
+    replayEnded = false;
+    if ($('replayHud')) $('replayHud').hidden = true;
+  }
   for (const b of beans) scene.remove(b.m);
   if (spike) scene.remove(spike.m);
   beans = [];
@@ -820,7 +843,7 @@ function scrambleRevive(b) {
     flashEl.classList.add('revive-now');
   }
   __va('scramble_revive', { remaining: scrambleRevivesLeft, survival_s: survivalSeconds() });
-  roundEvents.push({ at: performance.now(), type: 'revive', x: b.p.x, z: b.p.z });
+  roundEvents.push(makeActionEvent('revive', { x: b.p.x, z: b.p.z }));
   return true;
 }
 function inputFor(b) {
@@ -908,7 +931,11 @@ function pushBean(b) {
       hit = true;
       lastJuice.pushAt = performance.now();
       playSfx('push', clamp(o.p.x / 8, -1, 1));
-      roundEvents.push({ at: performance.now(), type: 'push', x: o.p.x, z: o.p.z });
+      if (!b.ai || !o.ai) {
+        roundEvents.push(makeActionEvent('push', {
+          x: o.p.x, z: o.p.z, by: b.name, target: o.name
+        }));
+      }
       __va('push_hit', { player: b.name, target: o.name, push_count: pushCount });
     }
   }
@@ -1066,6 +1093,7 @@ function beginFallDeath(b) {
     flash(deathMsg, b.fallingDeathT + 1.0);
     showCaption(deathMsg, b.fallingDeathT + 1.0);
     lastJuice.fallDeathAt = performance.now();
+    roundEvents.push(makeActionEvent('death', { x: b.p.x, z: b.p.z, fall_kind }));
     __va('player_eliminated', {
       survival_s: inCount ? 0 : survivalSeconds(),
       cause,
@@ -1106,6 +1134,7 @@ function updateFallDeath(b, dt) {
 function finishFallDeath(b) {
   b.fallingDeath = false;
   b.fallingDeathT = 0;
+  if (replayMode) return;
   if (trainingMode && !b.ai) {
     // Training QA: tumble then snap hero back onto a safe tile.
     trainingRespawnHero(b);
@@ -1290,6 +1319,290 @@ function leaveSpectateToLobby() {
   __va('spectate_leave', payload);
   tearDownToLobby({ event: 'return_to_lobby', data: {} });
 }
+function syncReplayButtons() {
+  const has = hasReplayPackage(lastReplayPackage);
+  const btn = $('replayLastBtn');
+  if (btn) btn.hidden = !has;
+  const splashBtn = $('splashReplayBtn');
+  if (splashBtn) splashBtn.hidden = !has;
+  const pauseBtn = $('pauseReplayBtn');
+  if (pauseBtn) pauseBtn.hidden = !has || replayMode;
+}
+
+function persistLastReplayOnLose({ fall_kind, survival_s } = {}) {
+  // Cap buffer first (same window as live recording).
+  const now = performance.now();
+  roundEvents = trimRoundEvents(roundEvents, now);
+  const pkg = buildReplayPackage({
+    events: roundEvents,
+    map: mapVariant,
+    mode,
+    fall_kind: fall_kind || lastDeathReason?.fall_kind || null,
+    survival_s: survival_s != null ? survival_s : survivalSeconds(),
+    at: Date.now()
+  });
+  const saved = saveReplayToStorage(localStorage, pkg) || pkg;
+  lastReplayPackage = saved;
+  syncReplayButtons();
+  return saved;
+}
+
+function rebuildTilesForReplayMap(mapName) {
+  const mapKey = MAPS[mapName] ? mapName : 'classic';
+  mapVariant = mapKey;
+  for (const [i, t] of tiles.entries()) {
+    const hide = MAPS[mapKey]?.hidden(t) ? true : false;
+    t.st = hide ? 'gone' : 'ok';
+    t.blocked = t.st === 'gone';
+    t.t = 0;
+    t.vy = 0;
+    t.y = TILE_TOP - TILE_H / 2;
+    t.underfootWarned = false;
+    t.graceGiven = false;
+    t.crackAt = Infinity;
+    writeTile(i);
+  }
+  tileMesh.instanceMatrix.needsUpdate = true;
+  tileMesh.instanceColor.needsUpdate = true;
+}
+
+function spawnReplayGhost(atX = 0, atZ = 0) {
+  for (const b of beans) scene.remove(b.m);
+  beans = [];
+  const m = makeBean(true, 0xff5555);
+  const pos = new THREE.Vector3(atX, TILE_TOP + 0.15, atZ);
+  const b = createBeanState({ name: '你', ai: false, human: 1, p: pos, mesh: m, color: 0xff5555 });
+  b.mixer = m.userData?.mixer || null;
+  b.actions = m.userData?.actions || null;
+  b.alive = true;
+  b.ground = true;
+  // Ghost: slightly translucent so it reads as replay, not live play.
+  m.traverse(node => {
+    if (!node.isMesh || !node.material) return;
+    node.material = node.material.clone();
+    if ('transparent' in node.material) {
+      node.material.transparent = true;
+      node.material.opacity = 0.78;
+    }
+  });
+  m.position.copy(b.p);
+  scene.add(m);
+  beans.push(b);
+  points = { '你': 0 };
+  return b;
+}
+
+function applyReplayTileEvent(ev) {
+  const i = ev.tile;
+  if (typeof i !== 'number' || i < 0 || i >= tiles.length) return;
+  const t = tiles[i];
+  if (ev.type === 'tile_warn') {
+    if (t.st === 'gone' || t.st === 'fall') return;
+    t.st = 'crack';
+    t.t = 1.2;
+    t.underfootWarned = Boolean(ev.underfoot);
+    writeTile(i);
+    if (ev.underfoot) {
+      const msg = language === 'zh' ? '脚下裂了！快跳开' : 'Floor cracking under you — jump!';
+      flash(msg, 1.0);
+      showCaption(msg, 1.0);
+    }
+  } else if (ev.type === 'tile_fall') {
+    t.st = 'fall';
+    t.vy = 0;
+    writeTile(i);
+    burst(new THREE.Vector3(t.x, TILE_TOP, t.z), 0xffaa44, reduceMotion ? 4 : 18);
+  }
+  tileMesh.instanceMatrix.needsUpdate = true;
+  tileMesh.instanceColor.needsUpdate = true;
+}
+
+function finishReplayPlayback({ natural = true } = {}) {
+  if (replayEnded && natural) return;
+  replayEnded = true;
+  const fk = replayPkg?.fall_kind || lastDeathReason?.fall_kind || null;
+  const surv = replayPkg?.survival_s ?? 0;
+  __va('replay_end', { fall_kind: fk, survival_s: surv, natural: natural ? 1 : 0 });
+  const endMsg = language === 'zh' ? '回放结束' : 'Replay ended';
+  flash(endMsg, 4);
+  showCaption(endMsg, 3);
+  if ($('replayHud')) {
+    $('replayHud').hidden = false;
+    $('replayHud').textContent = endMsg + (language === 'zh' ? ' · Esc / 按钮返回' : ' · Esc / button to exit');
+  }
+}
+
+function exitReplay() {
+  if (!replayMode && state !== 'replay') return;
+  if (!replayEnded) finishReplayPlayback({ natural: false });
+  replayMode = false;
+  replayPkg = null;
+  replayT = 0;
+  replayLastT = -1;
+  const backToResult = replayFromResult;
+  replayFromResult = false;
+  if ($('replayHud')) $('replayHud').hidden = true;
+  if ($('pauseOverlay')) $('pauseOverlay').hidden = true;
+  paused = false;
+  // Clear ghost arena before returning.
+  for (const b of beans) scene.remove(b.m);
+  beans = [];
+  if (spike) { scene.remove(spike.m); spike = null; }
+  state = backToResult ? 'over' : 'menu';
+  if (backToResult && $('result')) {
+    $('result').hidden = false;
+    syncReplayButtons();
+  } else {
+    state = 'menu';
+    if ($('splash')) {
+      $('splash').hidden = false;
+      syncReplayButtons();
+    } else {
+      tearDownToLobby({ event: 'return_to_lobby', data: { from: 'replay' } });
+    }
+  }
+}
+
+function startLastReplay(pkg = lastReplayPackage, { fromResult = false } = {}) {
+  const source = pkg || loadReplayFromStorage(localStorage);
+  if (!hasReplayPackage(source)) {
+    flash(language === 'zh' ? '还没有可回放的上一局' : 'No last-round replay yet', 2);
+    return false;
+  }
+  lastReplayPackage = source;
+  replayPkg = source;
+  replayMode = true;
+  replayT = 0;
+  replayLastT = -1;
+  replayEnded = false;
+  replayFromResult = fromResult || (state === 'over' && $('result') && !$('result').hidden);
+  paused = false;
+  spectating = false;
+  watchingAfterLocalOut = false;
+  trainingMode = false;
+  practiceRound = false;
+  roundEndFired = true; // block live endRound during replay
+  if ($('result')) $('result').hidden = true;
+  if ($('splash')) $('splash').hidden = true;
+  if ($('pauseOverlay')) $('pauseOverlay').hidden = true;
+  if ($('trainingPanel')) $('trainingPanel').hidden = true;
+  setSpectateExitUi(false);
+  rebuildTilesForReplayMap(source.map);
+  const firstSnap = source.events.find(e => e.type === 'snapshot') || source.events[0];
+  spawnReplayGhost(firstSnap?.x || 0, firstSnap?.z || 0);
+  if (spike) { scene.remove(spike.m); spike = null; }
+  // Quiet hazard during solo ghost replay.
+  const sm = makeSpike();
+  sm.visible = false;
+  spike = { m: sm, a: 0 };
+  scene.add(sm);
+  state = 'replay';
+  if (source.fall_kind) lastDeathReason = deathReasonFor(source.fall_kind);
+  flash(language === 'zh' ? '回放上一局' : 'Replaying last round', 1.6);
+  if ($('replayHud')) {
+    $('replayHud').hidden = false;
+    $('replayHud').innerHTML = (language === 'zh' ? '回放中 · Esc 退出' : 'Replay · Esc to exit') +
+      ' <button type="button" id="exitReplayBtn" class="replay-exit">' +
+      (language === 'zh' ? '退出回放' : 'Exit replay') + '</button>';
+    $('exitReplayBtn')?.addEventListener('click', exitReplay);
+  }
+  __va('replay_start', { fall_kind: source.fall_kind, survival_s: source.survival_s });
+  syncReplayButtons();
+  return true;
+}
+
+function updateReplay(dt) {
+  if (!replayMode || !replayPkg || state !== 'replay') return;
+  if (replayEnded) {
+    // Keep ghost frozen; fall tiles may still animate visually.
+    for (const [i, t] of tiles.entries()) {
+      if (t.st === 'fall') {
+        t.vy -= 20 * dt;
+        t.y += t.vy * dt;
+        if (t.y < -30) { t.st = 'gone'; t.y = TILE_TOP - TILE_H / 2; }
+        writeTile(i);
+      } else if (t.st === 'crack') writeTile(i);
+    }
+    tileMesh.instanceMatrix.needsUpdate = true;
+    tileMesh.instanceColor.needsUpdate = true;
+    return;
+  }
+  const prev = replayT;
+  replayT += dt * 1000;
+  const due = eventsDue(replayPkg.events, prev, replayT);
+  for (const ev of due) {
+    if (ev.type === 'tile_warn' || ev.type === 'tile_fall') applyReplayTileEvent(ev);
+    else if (ev.type === 'death') {
+      const reason = deathReasonFor(ev.fall_kind || replayPkg.fall_kind);
+      lastDeathReason = reason;
+      const msg = deathReasonText(reason);
+      flash(msg, 2.5);
+      showCaption(msg, 2.5);
+      const ghost = beans[0];
+      if (ghost) {
+        ghost.alive = false;
+        ghost.fallingDeath = true;
+        ghost.fallingDeathT = reduceMotion ? 0.4 : 1.0;
+        ghost.v.set((Math.random() - 0.5) * 3, -4, (Math.random() - 0.5) * 3);
+        if (ghost.m?.userData?.rig) ghost.m.userData.rig.clip = 'fall';
+      }
+      // End shortly after death caption.
+      setTimeout(() => finishReplayPlayback({ natural: true }), reduceMotion ? 700 : 1400);
+    } else if (ev.type === 'revive') {
+      flash(language === 'zh' ? '豆豆复活！' : 'Bean revive!', 1.2);
+      showCaption(language === 'zh' ? '复活!' : 'Revive!', 1.2);
+    } else if (ev.type === 'push') {
+      punch(0.2);
+    }
+  }
+  const pose = sampleGhostPose(replayPkg.events, replayT);
+  const ghost = beans[0];
+  if (ghost && pose && ghost.alive && !ghost.fallingDeath) {
+    const prevX = ghost.p.x;
+    const prevZ = ghost.p.z;
+    ghost.p.x = pose.x;
+    ghost.p.z = pose.z;
+    ghost.p.y = TILE_TOP + 0.15;
+    ghost.ground = pose.grounded;
+    const dx = pose.x - prevX;
+    const dz = pose.z - prevZ;
+    if (Math.hypot(dx, dz) > 0.002) {
+      ghost.steerX = dx;
+      ghost.steerZ = dz;
+      ghost.lastWishYaw = Math.atan2(dx, dz);
+      ghost.m.rotation.y = ghost.lastWishYaw;
+    }
+    ghost.m.position.copy(ghost.p);
+    updateBeanMotionFeel(ghost, dt);
+  } else if (ghost?.fallingDeath) {
+    updateFallDeath(ghost, dt);
+    // Don't call finishFallDeath → endRound; updateFallDeath may finish and remove mesh.
+    // Override: if tumble done during replay, keep caption and wait for finishReplayPlayback.
+    if (!ghost.fallingDeath && !ghost.alive && ghost.m && ghost.m.parent) {
+      // finishFallDeath already ran — prevent endRound side effects by no-op (roundEndFired true).
+    }
+  }
+  // Animate falling tiles during replay.
+  for (const [i, t] of tiles.entries()) {
+    if (t.st === 'fall') {
+      t.vy -= 20 * dt;
+      t.y += t.vy * dt;
+      if (t.y < -30) { t.st = 'gone'; t.y = TILE_TOP - TILE_H / 2; }
+      writeTile(i);
+    } else if (t.st === 'crack') {
+      t.t -= dt;
+      writeTile(i);
+    }
+  }
+  tileMesh.instanceMatrix.needsUpdate = true;
+  tileMesh.instanceColor.needsUpdate = true;
+  const dur = replayDurationMs(replayPkg);
+  if (!replayEnded && dur > 0 && replayT >= dur + 800) {
+    finishReplayPlayback({ natural: true });
+  }
+  replayLastT = replayT;
+}
+
 function endRound({ end_reason } = {}) {
   const alive = beans.filter(b => b.alive);
   if (roundEndFired) {
@@ -1338,7 +1651,15 @@ function endRound({ end_reason } = {}) {
     localStorage.setItem('blockbean_best_survival', String(bestSurvival));
   }
   clipReady = true;
-  roundEvents = roundEvents.slice(-240);
+  roundEvents = trimRoundEvents(roundEvents, performance.now());
+  const isLose = !practiceComplete && (earlyLocalOut || !won);
+  // Persist last-round package on local out / lose so the *next* loss can be replayed.
+  if (isLose && !trainingMode) {
+    persistLastReplayOnLose({
+      fall_kind: lastDeathReason?.fall_kind || null,
+      survival_s: roundDuration
+    });
+  }
   state = 'over';
   slowMo = 0.45;
   cameraPullback = 2;
@@ -1375,7 +1696,13 @@ function endRound({ end_reason } = {}) {
     $('shareText').value = formatShareText({ score: meScore, won, best: bestStreak, roast, url: PLAY_URL, variant, handle: clipHandle });
     $('roast').textContent = roast;
     if ($('bestBoard')) $('bestBoard').textContent = `本地最佳：连胜 ${bestStreak} · 推人 ${bestPush} · 存活 ${bestSurvival}s · 今日 ${today.rounds} 局/${today.pushes} 推 · 昨日 ${yesterday.rounds} 局/${yesterday.pushes} 推`;
-    if ($('clipStatus')) $('clipStatus').textContent = '近 10 秒本地事件缓冲已就绪，可下载分享卡。';
+    if ($('clipStatus')) {
+      const hasRep = hasReplayPackage(lastReplayPackage);
+      $('clipStatus').textContent = hasRep
+        ? (language === 'zh' ? '上一局回放已保存到本机，可点「回放这一局」。' : 'Last-round replay saved locally — tap Replay.')
+        : (language === 'zh' ? '本局事件缓冲已就绪，可下载分享卡。' : 'Round event buffer ready — download share card.');
+    }
+    syncReplayButtons();
     if ($('clipHandle')) $('clipHandle').value = clipHandle;
     if ($('tipActions')) $('tipActions').hidden = !tip;
     if ($('continueSpectateBtn')) $('continueSpectateBtn').hidden = !canContinueSpectate;
@@ -1436,7 +1763,7 @@ function applyLanguage() {
   if ($('devSummary')) $('devSummary').textContent = language === 'en' ? 'Advanced / Dev settings' : '高级 / 开发设置';
 }
 function togglePause() {
-  if (state === 'menu' || state === 'over') return;
+  if (state === 'menu' || state === 'over' || state === 'replay' || replayMode) return;
   paused = !paused;
   if ($('pauseOverlay')) {
     $('pauseOverlay').hidden = !paused;
@@ -1499,6 +1826,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Space') e.preventDefault();
   if (e.code === 'Escape') {
     e.preventDefault();
+    if (replayMode || state === 'replay') { exitReplay(); return; }
     if (trainingMode) { exitTrainingMode(); return; }
     togglePause();
   }
@@ -1507,7 +1835,7 @@ addEventListener('keydown', e => {
     // Allow push even with no rivals — still triggers push anim for QA.
   }
   if (e.code === 'Tab' && spectating) { e.preventDefault(); cycleSpectator(); }
-  if (e.code === 'KeyR' && (state === 'over' || spectating) && !trainingMode) {
+  if (e.code === 'KeyR' && (state === 'over' || spectating) && !trainingMode && !replayMode) {
     if (spectating) __va('spectate_next', {});
     reset();
   }
@@ -1584,6 +1912,13 @@ $('replayBtn')?.addEventListener('click', () => {
   if (spectating || watchingAfterLocalOut) __va('spectate_next', {});
   reset();
 });
+$('replayLastBtn')?.addEventListener('click', () => startLastReplay(lastReplayPackage, { fromResult: true }));
+$('splashReplayBtn')?.addEventListener('click', () => startLastReplay(lastReplayPackage, { fromResult: false }));
+$('pauseReplayBtn')?.addEventListener('click', () => {
+  if (paused) togglePause();
+  startLastReplay(lastReplayPackage, { fromResult: false });
+});
+syncReplayButtons();
 $('continueSpectateBtn')?.addEventListener('click', continueSpectate);
 $('resultLeaveBtn')?.addEventListener('click', leaveSpectateToLobby);
 $('spectateNextBtn')?.addEventListener('click', spectateNextRound);
@@ -1646,23 +1981,27 @@ function loop() {
     heroGrounded: Boolean(hero?.ground)
   });
   frameDt = frame.frameDt;
-  if (state === 'play' && performance.now() - lastEventAt > 250) {
+  if ((state === 'play' || state === 'count') && !replayMode && performance.now() - lastEventAt > SNAPSHOT_INTERVAL_MS) {
     lastEventAt = performance.now();
-    const me = beans[0];
-    roundEvents.push({ at: lastEventAt, type: 'snapshot', x: me?.p.x || 0, z: me?.p.z || 0, alive: beans.filter(b => b.alive).length });
-    roundEvents = roundEvents.filter(event => lastEventAt - event.at <= 10000);
+    const me = localHumanBean(beans);
+    if (me) {
+      roundEvents.push(makeSnapshotEvent(me, lastEventAt, beans.filter(b => b.alive).length));
+      roundEvents = trimRoundEvents(roundEvents, lastEventAt);
+    }
   }
   if (paused) { if (renderer) renderer.render(scene, cam); return; }
   const dt = frameDt * (slowMo > 0 ? 0.35 : 1);
-  if (msgT > 0) { msgT -= dt; if (msgT <= 0 && state !== 'over' && $('msg')) $('msg').textContent = ''; }
+  if (msgT > 0) { msgT -= dt; if (msgT <= 0 && state !== 'over' && state !== 'replay' && $('msg')) $('msg').textContent = ''; }
   if (captionT > 0) {
     captionT -= dt;
     if (captionT <= 0 && $('captions')) {
       $('captions').classList.remove('show');
-      if (state !== 'over') $('captions').textContent = '';
+      if (state !== 'over' && state !== 'replay') $('captions').textContent = '';
     }
   }
-  if (state === 'count') {
+  if (state === 'replay' || replayMode) {
+    updateReplay(dt);
+  } else if (state === 'count') {
     // Wall-clock countdown so main-thread GLB parse stalls don't stretch the 3s gate.
     countdown = Math.max(0, (countDeadline - performance.now()) / 1000);
     if ($('msg')) $('msg').textContent = countdown > 0 ? Math.ceil(countdown) : 'GO!';
@@ -1715,7 +2054,8 @@ function loop() {
         }
         __va('tile_warn', { tile: i, sudden });
         // Personal underfoot warn (local human only, once per tile crack).
-        fireUnderfootCrackWarn(t);
+        const underfoot = fireUnderfootCrackWarn(t) ? 1 : 0;
+        roundEvents.push(makeTileEvent('tile_warn', i, t, underfoot));
       } else if (t.st === 'crack') {
         t.t -= dt;
         if (t.t <= 0) {
@@ -1728,6 +2068,13 @@ function loop() {
           burst(new THREE.Vector3(t.x, TILE_TOP - 0.2, t.z), 0x8b5a2b, reduceMotion ? 3 : 16);
           lastJuice.fallAt = performance.now();
           __va('tile_fall', { tile: i });
+          {
+            const me = localHumanBean(beans);
+            const underfoot = me && me.alive && !me.fallingDeath && (
+              me.lastSupportTile === t || tileOverlapsFoot(me, t, 0.68, T)
+            );
+            roundEvents.push(makeTileEvent('tile_fall', i, t, underfoot));
+          }
         } else writeTile(i);
       } else if (t.st === 'fall') {
         t.vy -= 20 * dt;
@@ -1805,7 +2152,7 @@ function loop() {
   }
   crackPulseT += frameDt;
   // Keep crack edge-glow matrices fresh without random floor jitter.
-  if (state === 'play' || state === 'over') {
+  if (state === 'play' || state === 'over' || state === 'replay') {
     let crackDirty = false;
     for (let i = 0; i < tiles.length; i++) {
       if (tiles[i].st === 'crack') { writeTile(i); crackDirty = true; }
@@ -1847,7 +2194,7 @@ function loop() {
     __va('cam_tune', { tau_ms: Math.round(camYawTau * 1000) });
   }
   // Damped one-shot shake in camera-local space (see punch()); never world-random sway.
-  const allowShake = !reduceMotion && (state === 'play' || state === 'over' || Boolean(localDying));
+  const allowShake = !reduceMotion && (state === 'play' || state === 'over' || state === 'replay' || Boolean(localDying));
   if (!allowShake) { shakeVel.set(0, 0, 0); shakeOffset.set(0, 0, 0); cameraPunch = 0; }
   else {
     shakeOffset.x += shakeVel.x * frameDt * 60;
@@ -1899,7 +2246,13 @@ function loop() {
     const hero = beans.find(b => !b.ai);
     const clipName = hero?.m?.userData?.rig?.clip || hero?.actions && Object.keys(hero.actions).find(k => hero.actions[k]?.isRunning?.()) || 'idle';
     if (trainingMode && $('trainingClip')) $('trainingClip').textContent = 'clip: ' + clipName;
-    if (trainingMode) {
+    if (state === 'replay' || replayMode) {
+      const surv = replayPkg?.survival_s != null ? replayPkg.survival_s : '—';
+      const fk = replayPkg?.fall_kind || '';
+      $('hud').innerHTML = '🎬 回放上一局 · ' + Math.max(0, replayT / 1000).toFixed(1) + 's'
+        + (fk ? (' · ' + (deathReasonText(deathReasonFor(fk)) || fk)) : '')
+        + '<br><small>Esc / 退出回放 · 幽灵豆按记录移动</small>';
+    } else if (trainingMode) {
       $('hud').innerHTML = state === 'menu' ? '' :
         '🛠 训练场 · clip <b>' + clipName + '</b>' +
         '<br><small>WASD 走 · 空格跳 · E 推 · F 模拟坠落 · Esc 退出</small>';
@@ -1953,6 +2306,16 @@ window.__game = {
   continueSpectate,
   spectateNextRound,
   leaveSpectateToLobby,
-  reset
+  reset,
+  get lastReplayPackage() { return lastReplayPackage; },
+  set lastReplayPackage(v) { lastReplayPackage = v; syncReplayButtons(); },
+  get replayMode() { return replayMode; },
+  get roundEvents() { return roundEvents; },
+  startLastReplay,
+  exitReplay,
+  persistLastReplayOnLose,
+  syncReplayButtons,
+  localHumanBean: () => localHumanBean(beans),
+  REPLAY_LS_KEY
 };
 loop();
