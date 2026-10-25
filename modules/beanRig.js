@@ -36,10 +36,10 @@ export function attachBeanRig(root, visual, { color = 0x7ec8ff, hero = false } =
   torso.name = 'torso';
 
   if (visual.parent) visual.parent.remove(visual);
-  // Game forward = local +Z (pushBean / camChase). Tripo hero/rival GLBs face -Z;
-  // rotate the static visual once so the face points along movement / camera-forward.
-  // Rig limbs + lean stay in +Z-forward space; chase cam stays behind the back.
-  visual.rotation.y = Math.PI;
+  // Game forward = local +Z (pushBean / camChase). Tripo hero/rival GLB native face is +X
+  // (ortho: y0_cam+x = full face). Map +X → +Z so chase from -Z sees the back, not a side.
+  // Rig limbs + lean stay in +Z-forward space; do not touch cam-relative W/+mz.
+  visual.rotation.y = -Math.PI / 2;
   torso.add(visual);
 
   // Approximate attachment points for a ~1.4-tall fitted bean.
