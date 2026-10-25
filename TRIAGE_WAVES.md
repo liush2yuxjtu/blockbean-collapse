@@ -337,11 +337,11 @@ Aligns with / expands Wave 1 #2. Respect T6 reduce motion.
 
 | ID | Item | Status | Acceptance |
 |----|------|--------|------------|
-| **C1** | After out: cycle survivors | ✅ | After local out, cycle living beans; round continues to real winner |
+| **C1** | After out: cycle survivors | ✅ | **Result-first:** local out → show result + `round_end` immediately; secondary **继续观战** cycles survivors (round may continue). See CODEX_HANDOFF P0 HOTFIX 2026-10-26. |
 | **C2** | Spec HUD: alive count + next collapse tip | ✅ | Spec HUD shows alive count + next-collapse tip; non-blocking |
 | **C3** | Soft follow cam + optional free look | ✅ | Soft follow cam; optional free look; default not nauseating |
 | **C4** | Caption strip for big moments | ✅ | Caption strip for big moments (multi-push/final); can disable |
-| **C5** | Return-to-lobby without killing round view | ✅ | Return to lobby does not forcibly kill spectate view (or confirms); round logic not corrupted by mis-tap |
+| **C5** | Return-to-lobby without killing round view | ✅ | Spectate can **exit early**: Next (R) → new round; Leave → lobby. Not trapped until last bean. Mis-tap still protected. See CODEX P0 + spectate_next/leave. |
 
 **Scheduling:** Aligns with / expands Wave 2 #10; parallel OK; do not block feel.
 
