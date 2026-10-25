@@ -111,7 +111,7 @@ This conflicts with how players treat “I fell = my run is over,” even though
 ### Out of scope this hotfix
 
 - Reworking C2–C5 HUD polish beyond the “继续观战” entry.
-- Fixing `audio_unlock` spam (separate Ops note; every keydown currently re-fires).
+- [x] `audio_unlock` fires once per page load (`audioUnlockEvented` guard in `unlockAudio`; still resumes AudioContext when suspended).
 - Investigating `runtime_fallback` WebGL rate (separate).
 
 **Implement in** `game.js` (+ Playwright if T2 harness exists). Docs: sync this section; mark TRIAGE Spectator C1 note = result-first.
@@ -172,3 +172,8 @@ This conflicts with how players treat “I fell = my run is over,” even though
 ## Perf telemetry (2026-10-26)
 
 **Branch `feat/perf-speed-telemetry`.** `__va` events `perf_frame_spike` / `perf_sample` / `perf_speed_anomaly` / `perf_resume` (see `modules/perfTelemetry.js`); visibility/unpause discards `THREE.Clock` backlog so resume never applies a fat 0.05s step.
+
+## Ops — audio_unlock once (2026-10-26)
+
+**Branch `fix/audio-unlock-once`.** `unlockAudio()` still resumes a suspended AudioContext on every gesture, but `__va('audio_unlock', { first: true })` fires only once per page load via `audioUnlockEvented`.
+

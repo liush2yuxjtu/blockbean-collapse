@@ -8,7 +8,7 @@ import { formatShareText, randomRoast, setText } from './modules/ui.js';
 import { createPerfTelemetry } from './modules/perfTelemetry.js';
 
 const PLAY_URL = 'https://blockbean-collapse.vercel.app';
-const VERSION = '1.1.1';
+const VERSION = '1.1.2';
 const BALANCE = {
   push: {
     easy: { force: 9, cooldown: 1.05 },
@@ -323,6 +323,7 @@ let spectating = false;
 let followIndex = 0;
 let muted = localStorage.getItem('blockbean_muted') === '1';
 let audio = null;
+let audioUnlockEvented = false;
 const input = createInputState();
 const keys = input.keys;
 const touch = input.touch;
@@ -452,7 +453,10 @@ function unlockAudio() {
     bgm.connect(bgmGain).connect(audio.destination);
     bgm.start();
   }
-  __va('audio_unlock', {});
+  if (!audioUnlockEvented) {
+    audioUnlockEvented = true;
+    __va('audio_unlock', { first: true });
+  }
 }
 function tone(freq, duration = 0.08, type = 'sine', gain = 0.045, pan = 0) {
   if (muted || !audio) return;

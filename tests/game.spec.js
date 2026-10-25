@@ -99,6 +99,11 @@ test('loads, starts, eliminates beans, and shows the result screen', async ({ pa
   await expect(page.locator('#contextTip')).toBeVisible();
   await expect(page.locator('#contextTip')).toContainText(/提示|Tip|安全砖|safe tile/i);
 
+  // start + R + further keydowns all call unlockAudio; event must fire once per load
+  const unlocks = await page.evaluate(() => (window.__vaEvents || []).filter(e => e?.name === 'audio_unlock'));
+  expect(unlocks).toHaveLength(1);
+  expect(unlocks[0]?.data?.first).toBe(true);
+
   expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
 });
 
