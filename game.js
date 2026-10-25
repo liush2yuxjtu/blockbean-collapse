@@ -13,7 +13,7 @@ import { createPerfTelemetry } from './modules/perfTelemetry.js';
 import { createWebGLRendererWithFallback, probeWebGLContexts, formatRuntimeFallbackReason } from './modules/webglInit.js';
 
 const PLAY_URL = 'https://blockbean-collapse.vercel.app';
-const VERSION = '1.1.5';
+const VERSION = '1.1.6';
 const BALANCE = {
   push: {
     easy: { force: 9, cooldown: 1.05 },
@@ -402,6 +402,9 @@ let matchEndFired = false;
 let abandonFired = false;
 let watchingAfterLocalOut = false;
 let lastEndReason = null;
+/** Local player's last fall death cause for result-card copy (cleared on reset). */
+let lastDeathReason = null;
+let captionT = 0;
 
 const dayKey = (date = new Date()) => date.toISOString().slice(0, 10);
 function dailyStats(key = dayKey()) {
@@ -515,7 +518,8 @@ function playSfx(kind, pan = 0) {
     warn: '⚠️ 预警砖', fall: '⬇️ 地块塌陷', push: '💥 推击命中', pushed: '💫 被击退',
     revive: '🫘 豆豆复活', heartbeat: '💓 最后平台', win: '🏆 胜利', out: '❌ 出局'
   }[kind];
-  if (caption && $('captions')) { $('captions').textContent = caption; $('captions').classList.add('show'); setTimeout(() => $('captions')?.classList.remove('show'), 900); }
+  // Use captionT so longer death/underfoot captions are not wiped by a 900ms timeout.
+  if (caption) showCaption(caption, 0.9);
   if (bgmGain && audio) bgmGain.gain.setTargetAtTime(kind === 'warn' ? 0.004 : (muted ? 0 : volume * 0.018), audio.currentTime, 0.08);
   if (kind === 'warn') { tone(220, 0.14, 'square', 0.055); tone(140, 0.1, 'square', 0.03); tone(90, 0.06, 'square', 0.02); }
   if (kind === 'fall') { tone(90, 0.18, 'sawtooth', 0.04); noise(0.14, 0.04); }
@@ -550,6 +554,55 @@ function trailGhost(bean) {
 function flash(text, duration = 1.2) {
   if ($('msg')) $('msg').textContent = text;
   msgT = duration;
+}
+const DEATH_REASON_COPY = {
+  collapse: { zh: '死因：脚下的砖塌了', en: 'Cause: floor collapsed under you' },
+  edge: { zh: '死因：踩空掉下', en: 'Cause: walked off the edge' },
+  air: { zh: '死因：空中坠落', en: 'Cause: fell in mid-air' },
+  count: { zh: '死因：开局掉下', en: 'Cause: fell during countdown' }
+};
+function deathReasonFor(fall_kind) {
+  const copy = DEATH_REASON_COPY[fall_kind] || DEATH_REASON_COPY.air;
+  return { fall_kind: fall_kind || 'air', zh: copy.zh, en: copy.en };
+}
+function deathReasonText(reason) {
+  if (!reason) return '';
+  return language === 'zh' ? reason.zh : reason.en;
+}
+function showCaption(text, duration = 1.2) {
+  if (!$('captions') || !text) return;
+  $('captions').textContent = text;
+  $('captions').classList.add('show');
+  captionT = Math.max(captionT, duration);
+}
+function fireUnderfootCrackWarn(tile) {
+  if (!tile || tile.underfootWarned) return false;
+  const me = beans.find(b => !b.ai && b.alive && !b.fallingDeath);
+  if (!me) return false;
+  const support = supportingTile(me);
+  const onTile = support === tile
+    || me.lastSupportTile === tile
+    || tileOverlapsFoot(me, tile, 0.68, T);
+  if (!onTile) return false;
+  tile.underfootWarned = true;
+  if (!tile.graceGiven) {
+    tile.graceGiven = true;
+    tile.t = (tile.t || 0) + 0.35;
+  }
+  punch(0.28);
+  playSfx('warn');
+  const crackFlash = $('crackWarn');
+  if (crackFlash && !reduceMotion) {
+    crackFlash.classList.remove('warn-now', 'warn-underfoot');
+    void crackFlash.offsetWidth;
+    crackFlash.classList.add('warn-underfoot');
+  }
+  const msg = language === 'zh' ? '脚下裂了！快跳开' : 'Floor cracking under you — jump!';
+  flash(msg, 1.2);
+  showCaption(msg, 1.2);
+  lastJuice.warnAt = performance.now();
+  __va('underfoot_crack_warn', { sudden: Boolean(tile._sudden) });
+  return true;
 }
 function punch(amount = 0.18) {
   if (reduceMotion) return;
@@ -663,6 +716,9 @@ function reset() {
   abandonFired = false;
   watchingAfterLocalOut = false;
   lastEndReason = null;
+  lastDeathReason = null;
+  captionT = 0;
+  if ($('captions')) { $('captions').classList.remove('show'); $('captions').textContent = ''; }
   if ($('result')) $('result').hidden = true;
   if ($('continueSpectateBtn')) $('continueSpectateBtn').hidden = true;
   if ($('resultLeaveBtn')) $('resultLeaveBtn').hidden = true;
@@ -1004,10 +1060,11 @@ function beginFallDeath(b) {
     });
     const tileTopNow = b.lastSupportTile ? (b.lastSupportTile.y + TILE_H / 2) : null;
     const support_drop = tileTopNow == null ? undefined : Math.round((TILE_TOP - tileTopNow) * 100) / 100;
-    const deathMsg = (fall_kind === 'collapse' || support === 'crack' || support === 'none')
-      ? (language === 'zh' ? '脚下塌了' : 'Floor gave way')
-      : (language === 'zh' ? '掉下去了…' : 'Falling…');
-    flash(deathMsg, b.fallingDeathT + 0.2);
+    lastDeathReason = deathReasonFor(fall_kind);
+    const deathMsg = deathReasonText(lastDeathReason);
+    // Keep cause readable through the whole tumble (+1s buffer past fallingDeathT).
+    flash(deathMsg, b.fallingDeathT + 1.0);
+    showCaption(deathMsg, b.fallingDeathT + 1.0);
     lastJuice.fallDeathAt = performance.now();
     __va('player_eliminated', {
       survival_s: inCount ? 0 : survivalSeconds(),
@@ -1298,12 +1355,18 @@ function endRound({ end_reason } = {}) {
   flash(practiceComplete ? (language === 'zh' ? '练习完成！点击再来一局进入正式局' : 'Practice complete! Start again for the real round') : (won ? '🏆 你赢了！' : '你出局了！'), 999);
   if ($('result')) {
     $('resultTitle').textContent = practiceComplete ? (language === 'zh' ? '练习完成！' : 'Practice complete!') : (won ? (language === 'zh' ? '🏆 你赢了！' : '🏆 You win!') : (language === 'zh' ? '你出局了！' : 'You are out'));
-    $('resultDetail').textContent = practiceComplete
+    const statsLine = practiceComplete
       ? (language === 'zh' ? '已完成安全练习：下一局将开启真实塌陷和 Bot 推挤。' : 'Safe practice complete: the next round enables collapse and bot pushes.')
       : (language === 'zh' ? '获胜者：' : 'Winner: ') + winner +
         (language === 'zh' ? ' · 推人分：' : ' · Pushes: ') + meScore +
         (language === 'zh' ? ' · 存活：' : ' · Alive: ') + alive.length + '/' + beans.length +
         (language === 'zh' ? ' · 最佳连胜：' : ' · Best streak: ') + bestStreak;
+    const showDeathCause = !practiceComplete && !won && lastDeathReason;
+    const causeLine = showDeathCause ? deathReasonText(lastDeathReason) : '';
+    $('resultDetail').textContent = causeLine ? (causeLine + ' · ' + statsLine) : statsLine;
+    if (showDeathCause) {
+      __va('death_reason_shown', { fall_kind: lastDeathReason.fall_kind });
+    }
     if ($('contextTip')) {
       $('contextTip').textContent = tip;
       $('contextTip').hidden = !tip;
@@ -1592,6 +1655,13 @@ function loop() {
   if (paused) { if (renderer) renderer.render(scene, cam); return; }
   const dt = frameDt * (slowMo > 0 ? 0.35 : 1);
   if (msgT > 0) { msgT -= dt; if (msgT <= 0 && state !== 'over' && $('msg')) $('msg').textContent = ''; }
+  if (captionT > 0) {
+    captionT -= dt;
+    if (captionT <= 0 && $('captions')) {
+      $('captions').classList.remove('show');
+      if (state !== 'over') $('captions').textContent = '';
+    }
+  }
   if (state === 'count') {
     // Wall-clock countdown so main-thread GLB parse stalls don't stretch the 3s gate.
     countdown = Math.max(0, (countDeadline - performance.now()) / 1000);
@@ -1627,6 +1697,9 @@ function loop() {
       if (t.st === 'ok' && !warningStarted && scheduled[0] === t) {
         t.st = 'crack';
         t.t = sudden ? 0.85 : 1.55;
+        t.underfootWarned = false;
+        t.graceGiven = false;
+        t._sudden = sudden;
         warningStarted = true;
         writeTile(i);
         burst(new THREE.Vector3(t.x, TILE_TOP + 0.35, t.z), 0xff7b28, reduceMotion ? 4 : 22);
@@ -1636,11 +1709,13 @@ function loop() {
         playSfx('warn');
         const crackFlash = $('crackWarn');
         if (crackFlash && !reduceMotion) {
-          crackFlash.classList.remove('warn-now');
+          crackFlash.classList.remove('warn-now', 'warn-underfoot');
           void crackFlash.offsetWidth;
           crackFlash.classList.add('warn-now');
         }
         __va('tile_warn', { tile: i, sudden });
+        // Personal underfoot warn (local human only, once per tile crack).
+        fireUnderfootCrackWarn(t);
       } else if (t.st === 'crack') {
         t.t -= dt;
         if (t.t <= 0) {
@@ -1847,6 +1922,10 @@ window.__game = {
   get roundEndFired() { return roundEndFired; },
   get watchingAfterLocalOut() { return watchingAfterLocalOut; },
   get lastEndReason() { return lastEndReason; },
+  get lastDeathReason() { return lastDeathReason; },
+  deathReasonFor,
+  deathReasonText,
+  fireUnderfootCrackWarn,
   get practiceRound() { return practiceRound; },
   get trainingMode() { return trainingMode; },
   get reduceMotion() { return reduceMotion; },
