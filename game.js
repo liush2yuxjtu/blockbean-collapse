@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clamp, tileOverlapsFoot, collapseDelay } from './modules/arena.js';
 import { createBeanState, humanInputBindings } from './modules/beans.js';
+import { attachBeanRig, updateBeanRig, triggerBeanPush } from './modules/beanRig.js';
 import { createInputState, readPlayerInput } from './modules/input.js';
 import { formatShareText, randomRoast, setText } from './modules/ui.js';
 
@@ -272,8 +273,8 @@ function makeBean(isHero, color) {
   );
   if (!visual) group.geometry.translate(0, 0.72, 0);
   const root = new THREE.Group();
-  root.add(group);
-  root.userData.visual = group;
+  // Code skeleton: tumble→hips→torso(+limbs). Static GLB sits in torso; walk/push/fall drive hierarchy.
+  attachBeanRig(root, group, { color, hero: isHero });
   root.userData.assetKey = assetKey;
   // Easy animated-GLB swap: when Tripo ships skinned clips, mixer plays them here.
   const clips = AssetClips[assetKey] || AssetClips[isHero ? 'hero' : 'rival'] || [];
@@ -855,6 +856,7 @@ function control(b, dt) {
   if (!stunned && raw.push && b.cd <= 0 && mode !== 'no-push' && (!practiceRound || !b.ai)) {
     b.cd = (BALANCE.push[pushLevel] || BALANCE.push.default).cooldown;
     pushBean(b);
+    triggerBeanPush(b);
     b.m.scale.setScalar(1.2);
     setTimeout(() => b.m.scale.setScalar(1), 120);
   }
@@ -903,6 +905,9 @@ function beginFallDeath(b) {
   b.v.x += (Math.random() - 0.5) * 4;
   b.v.z += (Math.random() - 0.5) * 4;
   if (b.m.parent !== scene) scene.add(b.m);
+  const fallAct = b.actions?.fall || b.m?.userData?.actions?.fall;
+  if (fallAct) fallAct.reset().setEffectiveWeight(1).fadeIn(0.05).play();
+  if (b.m.userData?.rig) b.m.userData.rig.clip = 'fall';
   if (!b.ai) {
     slowMo = Math.max(slowMo, 0.85);
     cameraPullback = Math.max(cameraPullback, 1.5);
@@ -921,14 +926,19 @@ function updateFallDeath(b, dt) {
   b.v.y -= 22 * dt;
   b.p.addScaledVector(b.v, dt);
   b.m.position.copy(b.p);
-  const vis = b.m.userData?.visual || b.m;
-  if (b.tumbleSpin) {
-    vis.rotation.x += b.tumbleSpin.x * dt;
-    vis.rotation.y += b.tumbleSpin.y * dt;
-    vis.rotation.z += b.tumbleSpin.z * dt;
+  // Code rig owns tumble + limb flail; mixer path still ticks if present.
+  if (b.m.userData?.rig) {
+    updateBeanRig(b, dt, { reduceMotion });
+  } else {
+    const vis = b.m.userData?.visual || b.m;
+    if (b.tumbleSpin) {
+      vis.rotation.x += b.tumbleSpin.x * dt;
+      vis.rotation.y += b.tumbleSpin.y * dt;
+      vis.rotation.z += b.tumbleSpin.z * dt;
+    }
+    const stretch = 1 + Math.min(0.4, Math.abs(b.v.y) * 0.018);
+    vis.scale.set(1 / Math.sqrt(stretch), stretch, 1 / Math.sqrt(stretch));
   }
-  const stretch = 1 + Math.min(0.4, Math.abs(b.v.y) * 0.018);
-  vis.scale.set(1 / Math.sqrt(stretch), stretch, 1 / Math.sqrt(stretch));
   if (b.mixer) b.mixer.update(dt);
   if (b.fallingDeathT <= 0) finishFallDeath(b);
 }
@@ -944,7 +954,7 @@ function finishFallDeath(b) {
     endRound({ end_reason: practiceRound ? 'practice_done' : 'local_out' });
   }
 }
-/** Procedural lean/squash when no skinned clips; mixer.update when clips exist. */
+/** Code-rig walk/push/lean, or AnimationMixer when skinned clips exist. */
 function updateBeanMotionFeel(b, dt) {
   if (!b?.m || b.fallingDeath) return;
   if (b.mixer) {
@@ -965,8 +975,15 @@ function updateBeanMotionFeel(b, dt) {
         if (w < 0.92 && !idle.isRunning()) idle.play();
       }
     }
+    // Still tick hips/tumble identity via rig when present.
+    if (b.m.userData?.rig) updateBeanRig(b, dt, { reduceMotion });
     return;
   }
+  if (b.m.userData?.rig) {
+    updateBeanRig(b, dt, { reduceMotion });
+    return;
+  }
+  // Legacy single-mesh lean fallback (no rig attached).
   const vis = b.m.userData?.visual;
   if (!vis || reduceMotion) return;
   const spd = Math.hypot(b.v.x, b.v.z);
@@ -978,7 +995,6 @@ function updateBeanMotionFeel(b, dt) {
   const bob = (b.ground && spd > 0.25) ? Math.sin(b.bobT) * 0.05 : 0;
   vis.rotation.x = b.leanPitch;
   vis.rotation.z = b.leanRoll;
-  // Soft run squash on visual only (root scale reserved for push/land juice).
   const sy = 1 - bob * 0.55 + (b.ground ? 0 : Math.min(0.18, Math.abs(b.v.y) * 0.012));
   vis.scale.set(1 / Math.sqrt(Math.max(0.75, sy)), sy, 1 / Math.sqrt(Math.max(0.75, sy)));
 }
@@ -1574,9 +1590,10 @@ window.__game = {
   get scrambleRevivesLeft() { return scrambleRevivesLeft; },
   get localFallingDeath() { return beans.find(b => !b.ai && b.fallingDeath) || null; },
   get assetClips() { return AssetClips; },
+  get codeRig() { return true; },
   scrambleRevive,
   beginFallDeath,
-  debugPush(bean) { pushBean(bean); },
+  debugPush(bean) { triggerBeanPush(bean); pushBean(bean); },
   continueSpectate,
   spectateNextRound,
   leaveSpectateToLobby,

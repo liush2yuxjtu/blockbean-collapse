@@ -9,6 +9,8 @@ export const createBeanState = ({ name, ai, p, mesh, color, human = 0 }) => ({
   // Death tumble watch (see own fall before result) + procedural motion hooks.
   fallingDeath: false, fallingDeathT: 0, tumbleSpin: null,
   leanPitch: 0, leanRoll: 0, bobT: 0,
+  // Code-rig clip hooks (walk / push / fall) — see modules/beanRig.js.
+  pushAnimT: 0,
   // AnimationMixer when skinned/clip GLBs land (Tripo handoff); null today.
   mixer: mesh?.userData?.mixer || null,
   actions: mesh?.userData?.actions || null

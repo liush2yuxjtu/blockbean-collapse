@@ -349,6 +349,17 @@ test('death tumble then result; chase cam follows hero yaw', async ({ page }) =>
   await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 10_000 })
     .toBe('play');
 
+  // Code-side rig is attached (torso + limbs) — no Tripo skinned GLB required.
+  await expect.poll(() => page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    const bot = window.__game.beans.find(b => b.ai);
+    const r = me?.m?.userData?.rig;
+    const br = bot?.m?.userData?.rig;
+    return Boolean(window.__game?.codeRig)
+      && r?.torso && r?.armL && r?.legR && r?.tumble
+      && br?.torso && br?.armR;
+  })).toBeTruthy();
+
   // Burn scramble revive first.
   await page.evaluate(() => {
     const me = window.__game.beans.find(b => b.name === '你');
@@ -380,17 +391,58 @@ test('death tumble then result; chase cam follows hero yaw', async ({ page }) =>
     return Math.abs(d);
   }), { timeout: 5_000 }).toBeLessThan(0.55);
 
-  // Punch should be dampable and expose camChaseYaw API.
+  // Walk lean: hold forward, assert lean + walk clip + limb swing on the code rig.
   await page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    me.p.set(0, Math.max(me.p.y, 0), 0);
+    me.m.position.copy(me.p);
+    me.v.set(0, 0, 4);
+    me.steerZ = 1;
+    me.ground = true;
+    me.leanPitch = 0;
+    me.m.userData.rig.phase = 0.5;
+    me.m.userData.rig.clip = 'idle';
+  });
+  await page.keyboard.down('KeyW');
+  await expect.poll(() => page.evaluate(() => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    const rig = me?.m?.userData?.rig;
+    if (!me || !rig) return false;
+    // Keep locomotion alive inside the poll in case friction wins a frame.
+    if (me.alive && !me.fallingDeath) {
+      me.ground = true;
+      me.v.z = Math.max(me.v.z, 4);
+      me.steerZ = 1;
+    }
+    const limbSwing = Math.abs(rig.armL.rotation.x) + Math.abs(rig.legR.rotation.x);
+    return me.leanPitch > 0.04 && (rig.clip === 'walk' || limbSwing > 0.12) && limbSwing > 0.08;
+  }), { timeout: 5_000 }).toBeTruthy();
+  await page.keyboard.up('KeyW');
+
+  // Fall tumble uses code rig tumble root + fall clip (death watch before result).
+  const tumbleBefore = await page.evaluate(() => {
     const me = window.__game.beans.find(b => b.name === '你');
     me.invulnT = 0;
     me.p.y = -20;
     me.v.y = -1;
+    return {
+      tx: me.m.userData.rig.tumble.rotation.x,
+      ty: me.m.userData.rig.tumble.rotation.y,
+      tz: me.m.userData.rig.tumble.rotation.z,
+    };
   });
   await expect.poll(() => page.evaluate(() => {
     const me = window.__game.beans.find(b => b.name === '你');
     return me?.fallingDeath === true && document.getElementById('result')?.hidden !== false;
   }), { timeout: 5_000 }).toBeTruthy();
+  await expect.poll(() => page.evaluate((before) => {
+    const me = window.__game.beans.find(b => b.name === '你');
+    const t = me?.m?.userData?.rig?.tumble?.rotation;
+    if (!t || me?.m?.userData?.rig?.clip !== 'fall') return false;
+    const moved = Math.abs(t.x - before.tx) + Math.abs(t.y - before.ty) + Math.abs(t.z - before.tz);
+    const flail = Math.abs(me.m.userData.rig.armL.rotation.x) + Math.abs(me.m.userData.rig.legL.rotation.x);
+    return moved > 0.2 || flail > 0.2;
+  }, tumbleBefore), { timeout: 5_000 }).toBeTruthy();
   // Camera still focuses the tumbling hero (not yet result).
   await expect.poll(() => page.evaluate(() => window.__game.roundEndFired !== true)).toBeTruthy();
   await expect(page.locator('#result')).toBeVisible({ timeout: 10_000 });

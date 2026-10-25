@@ -146,3 +146,16 @@ This conflicts with how players treat “I fell = my run is over,” even though
 
 **Out of scope for the code PR:** generating / refining Tripo meshes, spending Tripo credits, rewriting ASSET_BRIEF style bible.
 
+---
+
+## P0 UX — Code bean rig (no Tripo spend) (2026-10-26)
+
+**Branch `fix/code-bean-rig`.** User chose code-side articulation over Tripo credit spend.
+
+1. **`modules/beanRig.js`:** Object3D hierarchy `tumble → hips → { torso(visual), armL/R, legL/R }` wrapped around existing static hero/rival GLBs (or capsule fallback).
+2. **Clips in code:** walk cycle (limb swing + lean), push lunge, fall tumble + limb flail. Death watch / chase cam unchanged — fall drives `tumble` root.
+3. **`AssetClips` / mixer hooks kept** for a future skinned GLB drop-in; procedural rig is the default when clips are empty.
+4. **Playwright:** asserts rig parts on hero+NPC, walk lean + `clip==='walk'` + limb swing, fall `clip==='fall'` + tumble/flail motion, then result-first `local_out`.
+
+**Do not** call Tripo MCP or regenerate GLBs for this PR.
+
