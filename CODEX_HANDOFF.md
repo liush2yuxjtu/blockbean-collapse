@@ -168,3 +168,7 @@ This conflicts with how players treat “I fell = my run is over,” even though
 ## P0 UX — Bean visual yaw -π/2 (2026-10-26)
 
 **Branch `fix/bean-face-yaw-neg90`.** Ortho proved Tripo face is +X (not -Z); `visual.rotation.y = -π/2` maps face→+Z so chase sees back. Cam-relative W/+mz from #19 unchanged.
+
+## Perf telemetry (2026-10-26)
+
+**Branch `feat/perf-speed-telemetry`.** `__va` events `perf_frame_spike` / `perf_sample` / `perf_speed_anomaly` / `perf_resume` (see `modules/perfTelemetry.js`); visibility/unpause discards `THREE.Clock` backlog so resume never applies a fat 0.05s step.

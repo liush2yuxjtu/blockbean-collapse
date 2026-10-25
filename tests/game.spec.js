@@ -572,3 +572,45 @@ test('W screen-forward moves +Z with cam behind at yaw≈0', async ({ page }) =>
 
   expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
 });
+
+test('perf telemetry module boots and can classify a frame spike without throwing', async ({ page }) => {
+  test.setTimeout(60_000);
+  const { pageErrors, start, fallback } = await bootGame(page);
+  if (await fallback.isVisible()) {
+    expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+    return;
+  }
+  await expect(start).toBeEnabled();
+  await start.click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 10_000 })
+    .toMatch(/count|play/);
+
+  // Force a synthetic spike through the same __va hook used by the game.
+  const got = await page.evaluate(async () => {
+    const { createPerfTelemetry, isFrameSpike } = await import('/modules/perfTelemetry.js');
+    const events = [];
+    let now = 50_000;
+    const perf = createPerfTelemetry((name, data) => events.push({ name, data }), {
+      now: () => now,
+      rateLimitMs: 3000,
+      sampleIntervalMs: 1000
+    });
+    const spike = isFrameSpike(0.2);
+    perf.beginFrame(0.2, { state: 'play', paused: false, slowMo: false, hidden: false, beansAlive: 2 });
+    now += 1500;
+    perf.beginFrame(0.016, { state: 'play', paused: false, slowMo: false, hidden: false, beansAlive: 2 });
+    return {
+      spike,
+      names: events.map(e => e.name),
+      spikeProps: events.find(e => e.name === 'perf_frame_spike')?.data || null,
+      bootState: window.__game?.state || null,
+    };
+  });
+  expect(got.spike).toBe(true);
+  expect(got.names).toContain('perf_frame_spike');
+  expect(got.names).toContain('perf_sample');
+  expect(got.spikeProps.raw_ms).toBe(200);
+  expect(got.spikeProps.clamped_ms).toBe(50);
+  expect(got.bootState).toMatch(/count|play/);
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token|perfTelemetry/i.test(message))).toEqual([]);
+});

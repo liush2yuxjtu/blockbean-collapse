@@ -5,6 +5,7 @@ import { createBeanState, humanInputBindings } from './modules/beans.js';
 import { attachBeanRig, updateBeanRig, triggerBeanPush } from './modules/beanRig.js';
 import { createInputState, readPlayerInput } from './modules/input.js';
 import { formatShareText, randomRoast, setText } from './modules/ui.js';
+import { createPerfTelemetry } from './modules/perfTelemetry.js';
 
 const PLAY_URL = 'https://blockbean-collapse.vercel.app';
 const VERSION = '1.1.1';
@@ -830,6 +831,7 @@ function control(b, dt) {
   }
   // Analog-smooth: interpolate input vector so digital WASD / AI seek don't snap to 8 dirs.
   const rawLen = Math.hypot(wishX, wishZ);
+  b.wishLen = rawLen;
   const cap = Math.min(1, rawLen || 0);
   const tx = rawLen > 1e-4 ? (wishX / rawLen) * cap : 0;
   const tz = rawLen > 1e-4 ? (wishZ / rawLen) * cap : 0;
@@ -1210,6 +1212,8 @@ function togglePause() {
     $('pauseOverlay').hidden = !paused;
     if ($('pauseText')) $('pauseText').textContent = tr('pause');
   }
+  // Leaving pause: discard one Clock delta so the next sim step isn't a fat hitch.
+  if (!paused) perfTelemetry.noteUnpause();
   __va('pause_toggle', { paused });
 }
 function toggleMotion() {
@@ -1354,15 +1358,37 @@ $('quitHold')?.addEventListener('pointerdown', () => { quitTimer = setTimeout(qu
 ['pointerup','pointercancel','pointerleave'].forEach(event => $('quitHold')?.addEventListener(event, () => { if (quitTimer) clearTimeout(quitTimer); quitTimer = null; }));
 const abandonBeacon = () => maybeAbandonRound();
 addEventListener('pagehide', abandonBeacon);
-addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') abandonBeacon();
-});
 
 let frameDt = 0.016;
 const clock = new THREE.Clock();
+const perfTelemetry = createPerfTelemetry(__va);
+addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    perfTelemetry.noteHidden();
+    abandonBeacon();
+    return;
+  }
+  // Tab foreground: discard THREE.Clock backlog so clamp(0.05) never applies a fat step.
+  clock.getDelta();
+  const hiddenMs = perfTelemetry.noteVisible();
+  if ((state === 'play' || state === 'count') && hiddenMs > 0) perfTelemetry.armResume(hiddenMs);
+});
 function loop() {
   requestAnimationFrame(loop);
-  frameDt = Math.min(clock.getDelta(), 0.05);
+  const rawDt = clock.getDelta();
+  const hero = beans.find(b => !b.ai && (b.name === '你' || b.human)) || beans.find(b => !b.ai) || null;
+  const heroSpeed = hero && hero.alive ? Math.hypot(hero.v.x, hero.v.z) : null;
+  const frame = perfTelemetry.beginFrame(rawDt, {
+    state,
+    paused,
+    slowMo: slowMo > 0,
+    hidden: document.hidden,
+    beansAlive: beans.filter(b => b.alive).length,
+    heroSpeed,
+    heroWish: hero ? (hero.wishLen || 0) : 0,
+    heroGrounded: Boolean(hero?.ground)
+  });
+  frameDt = frame.frameDt;
   if (state === 'play' && performance.now() - lastEventAt > 250) {
     lastEventAt = performance.now();
     const me = beans[0];
