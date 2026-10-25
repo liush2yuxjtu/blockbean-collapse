@@ -9,7 +9,7 @@ import { createPerfTelemetry } from './modules/perfTelemetry.js';
 import { createWebGLRendererWithFallback, probeWebGLContexts, formatRuntimeFallbackReason } from './modules/webglInit.js';
 
 const PLAY_URL = 'https://blockbean-collapse.vercel.app';
-const VERSION = '1.1.3';
+const VERSION = '1.1.4';
 const BALANCE = {
   push: {
     easy: { force: 9, cooldown: 1.05 },
@@ -34,6 +34,14 @@ const THEMES = {
 const __va = (name, data = {}) => {
   try { window.va && window.va('event', { name, data }); } catch (_) {}
 };
+function wantTrainingFromUrl() {
+  try {
+    const params = new URLSearchParams(location.search);
+    if (params.get('training') === '1') return true;
+    const hash = (location.hash || '').replace(/^#/, '');
+    return hash === 'training';
+  } catch (_) { return false; }
+}
 const $ = id => document.getElementById(id);
 addEventListener('error', e => __va('client_error', { message: String(e.message || 'error').slice(0, 120) }));
 const showFallback = (message, reasonDetail) => {
@@ -125,6 +133,7 @@ if ($('loadbar')) {
 }
 if ($('load')) $('load').textContent = Object.keys(A).length >= 1 ? '关键模型就绪 ✔' : '模型缺失，使用方块替代';
 if ($('start') && renderer) $('start').disabled = false;
+if ($('trainingBtn') && renderer) $('trainingBtn').disabled = false;
 __va('game_load_ready', { loaded_assets: Object.keys(A).length, webgl_profile: webglProfile || 'none' });
 
 const T = 2;
@@ -379,6 +388,9 @@ let bgm = null;
 let bgmGain = null;
 // O2: soften the first round so new players can learn movement, jumping, and pushing.
 let practiceRound = localStorage.getItem('blockbean_practice_done') !== '1';
+let trainingMode = false;
+let camYawTau = 0.1;
+let camTuneFired = false;
 let roundEndFired = false;
 let matchEndFired = false;
 let abandonFired = false;
@@ -572,9 +584,11 @@ function reset() {
   points = {};
   pushCount = 0;
   roundDuration = 0;
-  practiceRound = localStorage.getItem('blockbean_practice_done') !== '1';
-  // Formal rounds get 1 scramble revive; practice already has no lethal collapse.
-  scrambleRevivesLeft = practiceRound ? 0 : 1;
+  // Training is its own sandbox — do not consume or skip the first-time practiceRound flow.
+  if (trainingMode) practiceRound = false;
+  else practiceRound = localStorage.getItem('blockbean_practice_done') !== '1';
+  // Formal rounds get 1 scramble revive; practice/training already have no lethal collapse.
+  scrambleRevivesLeft = (practiceRound || trainingMode) ? 0 : 1;
   slowMo = 0;
   cameraPullback = 0;
   cameraPunch = 0;
@@ -584,7 +598,9 @@ function reset() {
   shakeVel.set(0, 0, 0);
   particles.splice(0).forEach(p => scene.remove(p.m));
   for (const [i, t] of tiles.entries()) {
-    t.st = MAPS[mapVariant]?.hidden(t) ? 'gone' : 'ok'; t.blocked = t.st === 'gone'; t.t = 0; t.vy = 0; t.y = TILE_TOP - TILE_H / 2;
+    // Training: stable full grid — never hide pit/ring cells.
+    const hide = trainingMode ? false : (MAPS[mapVariant]?.hidden(t) ? true : false);
+    t.st = hide ? 'gone' : 'ok'; t.blocked = t.st === 'gone'; t.t = 0; t.vy = 0; t.y = TILE_TOP - TILE_H / 2;
     t.crackAt = 999;
     writeTile(i);
   }
@@ -597,32 +613,40 @@ function reset() {
   });
   collapseOrder.forEach((t, index) => {
     const ring = Math.max(Math.abs(t.i - 3.5), Math.abs(t.j - 3.5));
-    t.crackAt = practiceRound ? Infinity : collapseDelay(index, ring) * BALANCE.pace[paceLevel];
+    t.crackAt = (practiceRound || trainingMode) ? Infinity : collapseDelay(index, ring) * BALANCE.pace[paceLevel];
   });
-  const count = Math.max(4, Math.min(8, botCount));
+  const count = trainingMode ? 1 : Math.max(4, Math.min(8, botCount));
   const colors = [0xff5555, 0x55aaff, 0xffdd33, 0xaa66ff, 0xff9933, 0x33ddaa, 0xff66cc, 0xc084fc];
   for (let k = 0; k < count; k++) {
     const angle = k / count * Math.PI * 2;
-    const human = k < 2 ? k + 1 : 0;
+    const human = trainingMode ? 1 : (k < 2 ? k + 1 : 0);
     const name = human === 1 ? '你' : human === 2 ? '玩家2' : 'Bot' + k;
     const m = makeBean(human === 1, colors[k % colors.length]);
-    const pos = new THREE.Vector3(Math.cos(angle) * 5, 3, Math.sin(angle) * 5);
+    // Spawn only on st==='ok' tiles — raw angle*5 can sit on gone pit/ring cells.
+    const prefer = { x: Math.cos(angle) * 5, z: Math.sin(angle) * 5 };
+    const pad = pickSafeTileNear(prefer, { okOnly: true });
+    const pos = pad
+      ? new THREE.Vector3(pad.x, 3, pad.z)
+      : new THREE.Vector3(prefer.x, 3, prefer.z);
     const b = createBeanState({ name, ai: !human, human, p: pos, mesh: m, color: colors[k % colors.length] });
     b.mixer = m.userData?.mixer || null;
     b.actions = m.userData?.actions || null;
+    b.lastSupportSt = 'ok';
     m.position.copy(b.p);
     scene.add(m);
     beans.push(b);
     points[b.name] = 0;
   }
   const sm = makeSpike();
-  sm.visible = !practiceRound;
+  sm.visible = !(practiceRound || trainingMode);
   spike = { m: sm, a: 0 };
   sm.position.set(0, TILE_TOP + 0.05, 0);
   scene.add(sm);
-  timer = roundSeconds;
-  countdown = 3;
-  countDeadline = performance.now() + 3000;
+  timer = trainingMode ? 9999 : roundSeconds;
+  countdown = trainingMode ? 0.35 : 3;
+  countDeadline = performance.now() + (trainingMode ? 350 : 3000);
+  // Non-zero from reset so countdown falls never use page-uptime; overwritten at GO for survival_s.
+  roundStart = performance.now();
   state = 'count';
   paused = false;
   spectating = false;
@@ -638,10 +662,16 @@ function reset() {
   setSpectateExitUi(false);
   if ($('contextTip')) { $('contextTip').hidden = true; $('contextTip').textContent = ''; }
   if ($('pauseOverlay')) $('pauseOverlay').hidden = true;
-  flash(practiceRound ? (language === 'zh' ? '练习局：先熟悉移动、跳跃和推人' : 'Practice: learn movement, jumping, and pushing') : '3', practiceRound ? 2.2 : 1);
+  const trainPanel = $('trainingPanel');
+  if (trainPanel) trainPanel.hidden = !trainingMode;
+  if (trainingMode) {
+    flash(language === 'zh' ? '训练场：测走路 / 推 / 坠落' : 'Training: walk / push / fall', 2.2);
+  } else {
+    flash(practiceRound ? (language === 'zh' ? '练习局：先熟悉移动、跳跃和推人' : 'Practice: learn movement, jumping, and pushing') : '3', practiceRound ? 2.2 : 1);
+  }
   unlockAudio();
-  __va('round_reset', { players: beans.length, local_2p: true, practice: practiceRound });
-  roundEvents = [{ at: performance.now(), type: 'round_reset', mode, map: mapVariant, theme }];
+  __va('round_reset', { players: beans.length, local_2p: !trainingMode, practice: practiceRound, training: trainingMode });
+  roundEvents = [{ at: performance.now(), type: 'round_reset', mode, map: mapVariant, theme, training: trainingMode }];
   lastEventAt = performance.now();
   clipReady = false;
   hazardRainT = 3;
@@ -678,8 +708,8 @@ function chooseTarget(b) {
   }).sort((a, c) => a.score - c.score);
   return ranked[0].t;
 }
-function pickSafeTileNear(prefer = null) {
-  const safe = tiles.filter(t => t.st === 'ok' || t.st === 'crack');
+function pickSafeTileNear(prefer = null, { okOnly = false } = {}) {
+  const safe = tiles.filter(t => okOnly ? t.st === 'ok' : (t.st === 'ok' || t.st === 'crack'));
   if (!safe.length) return null;
   if (prefer) {
     safe.sort((a, c) => {
@@ -863,6 +893,7 @@ function control(b, dt) {
   b.v.z += (az - b.v.z) * Math.min(1, accel * dt);
   if (Math.hypot(sx, sz) > 0.08) {
     const face = Math.atan2(sx, sz);
+    b.lastWishYaw = face;
     let dy = face - b.m.rotation.y;
     while (dy > Math.PI) dy -= Math.PI * 2;
     while (dy < -Math.PI) dy += Math.PI * 2;
@@ -894,6 +925,8 @@ function physics(b, dt) {
   b.p.addScaledVector(b.v, dt);
   const support = b.v.y <= 0 ? supportingTile(b) : null;
   b.ground = false;
+  if (support?.t) b.lastSupportSt = support.t.st;
+  else if (!support) b.lastSupportSt = 'none';
   if (support && b.v.y <= 0 && previousY >= support.top - 0.05 && b.p.y <= support.top) {
     b.p.y = support.top;
     b.v.y = Math.max(0, b.v.y);
@@ -939,9 +972,23 @@ function beginFallDeath(b) {
     cameraPullback = Math.max(cameraPullback, 1.5);
     punch(0.22);
     playSfx('out');
-    flash(language === 'zh' ? '掉下去了…' : 'Falling…', b.fallingDeathT + 0.2);
+    const inCount = state === 'count';
+    const cause = inCount ? 'fell_count' : 'fell';
+    const support = (b.lastSupportSt === 'crack') ? 'crack' : (b.lastSupportSt === 'ok' ? 'ok' : 'none');
+    const deathMsg = (support === 'crack' || support === 'none')
+      ? (language === 'zh' ? '脚下塌了' : 'Floor gave way')
+      : (language === 'zh' ? '掉下去了…' : 'Falling…');
+    flash(deathMsg, b.fallingDeathT + 0.2);
     lastJuice.fallDeathAt = performance.now();
-    __va('player_eliminated', { survival_s: Math.round((performance.now() - roundStart) / 1000), cause: 'fell' });
+    __va('player_eliminated', {
+      survival_s: inCount ? 0 : survivalSeconds(),
+      cause,
+      had_revive: scrambleRevivesLeft > 0 ? 1 : 0,
+      support,
+      map: mapVariant,
+      practice: practiceRound ? 1 : 0,
+      training: trainingMode ? 1 : 0
+    });
   } else {
     flash(`${b.name} 出局！`, 0.8);
   }
@@ -971,6 +1018,11 @@ function updateFallDeath(b, dt) {
 function finishFallDeath(b) {
   b.fallingDeath = false;
   b.fallingDeathT = 0;
+  if (trainingMode && !b.ai) {
+    // Training QA: tumble then snap hero back onto a safe tile.
+    trainingRespawnHero(b);
+    return;
+  }
   if (b.m) scene.remove(b.m);
   if (!b.ai) {
     spectating = true;
@@ -1024,6 +1076,76 @@ function updateBeanMotionFeel(b, dt) {
   const sy = 1 - bob * 0.55 + (b.ground ? 0 : Math.min(0.18, Math.abs(b.v.y) * 0.012));
   vis.scale.set(1 / Math.sqrt(Math.max(0.75, sy)), sy, 1 / Math.sqrt(Math.max(0.75, sy)));
 }
+function trainingRespawnHero(b) {
+  const pad = pickSafeTileNear(null, { okOnly: true }) || tiles.find(t => t.st === 'ok');
+  b.alive = true;
+  b.told = false;
+  b.fallingDeath = false;
+  b.fallingDeathT = 0;
+  b.tumbleSpin = null;
+  b.v.set(0, 0, 0);
+  b.steerX = 0;
+  b.steerZ = 0;
+  b.wishLen = 0;
+  b.coyote = 0.2;
+  b.stunT = 0;
+  b.invulnT = 0.4;
+  b.lastSupportSt = 'ok';
+  if (pad) b.p.set(pad.x, TILE_TOP + 0.05, pad.z);
+  else b.p.set(0, TILE_TOP + 0.05, 0);
+  if (b.m.parent !== scene) scene.add(b.m);
+  b.m.position.copy(b.p);
+  b.m.rotation.x = 0;
+  b.m.rotation.z = 0;
+  const rig = b.m.userData?.rig;
+  if (rig) {
+    rig.clip = 'idle';
+    rig.pushT = 0;
+    if (rig.tumble) rig.tumble.rotation.set(0, 0, 0);
+  }
+  const vis = b.m.userData?.visual || b.m;
+  if (vis && vis !== b.m) vis.rotation.set(0, vis.rotation.y || 0, 0);
+  vis.scale.set(1, 1, 1);
+  slowMo = 0;
+  cameraPullback = 0;
+  flash(language === 'zh' ? '训练：已复位' : 'Training: reset', 1.1);
+}
+
+function enterTrainingMode() {
+  trainingMode = true;
+  $('splash')?.remove();
+  $('ghostDemo')?.classList.remove('show');
+  if ($('result')) $('result').hidden = true;
+  __va('training_enter', {});
+  reset();
+}
+
+function exitTrainingMode() {
+  if (!trainingMode) return;
+  trainingMode = false;
+  const trainPanel = $('trainingPanel');
+  if (trainPanel) trainPanel.hidden = true;
+  __va('training_exit', {});
+  tearDownToLobby({ event: 'return_to_lobby', data: { from: 'training' } });
+}
+
+function trainingSimulateFall() {
+  if (!trainingMode) return;
+  const me = beans.find(b => !b.ai);
+  if (!me || me.fallingDeath) return;
+  me.lastSupportSt = me.lastSupportSt || 'ok';
+  beginFallDeath(me);
+}
+
+function trainingForcePush() {
+  if (!trainingMode) return;
+  const me = beans.find(b => !b.ai);
+  if (!me || !me.alive || me.fallingDeath) return;
+  me.cd = 0;
+  triggerBeanPush(me);
+  pushBean(me);
+}
+
 function survivalSeconds() {
   if (!roundStart) return 0;
   return Math.max(0, Math.round((performance.now() - roundStart) / 1000));
@@ -1069,9 +1191,10 @@ function tearDownToLobby({ event = 'return_to_lobby', data = {} } = {}) {
   $('splash')?.remove();
   const splash = document.createElement('div');
   splash.id = 'splash';
-  splash.innerHTML = '<h1>方块豆人：塌了就出局</h1><p>已回到大厅。选择设置后重新开始。</p><button id="startLobby">开始 / Start</button>';
+  splash.innerHTML = '<h1>方块豆人：塌了就出局</h1><p>已回到大厅。选择设置后重新开始。</p><button id="startLobby">开始 / Start</button><button id="trainingLobby" type="button">训练场</button>';
   document.body.appendChild(splash);
   $('startLobby')?.addEventListener('click', () => { splash.remove(); reset(); });
+  $('trainingLobby')?.addEventListener('click', () => { splash.remove(); enterTrainingMode(); });
   __va(event, data);
 }
 function leaveSpectateToLobby() {
@@ -1280,9 +1403,17 @@ bindTouch();
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
-  if (e.code === 'Escape') { e.preventDefault(); togglePause(); }
+  if (e.code === 'Escape') {
+    e.preventDefault();
+    if (trainingMode) { exitTrainingMode(); return; }
+    togglePause();
+  }
+  if (e.code === 'KeyF' && trainingMode) { e.preventDefault(); trainingSimulateFall(); }
+  if (e.code === 'KeyE' && trainingMode && state === 'play') {
+    // Allow push even with no rivals — still triggers push anim for QA.
+  }
   if (e.code === 'Tab' && spectating) { e.preventDefault(); cycleSpectator(); }
-  if (e.code === 'KeyR' && (state === 'over' || spectating)) {
+  if (e.code === 'KeyR' && (state === 'over' || spectating) && !trainingMode) {
     if (spectating) __va('spectate_next', {});
     reset();
   }
@@ -1305,6 +1436,25 @@ $('start')?.addEventListener('click', () => {
   reset();
   if (!A.rival) loadAsset('rival').then(() => { RivalProto = cloneFitted(A.rival, 1.4, 0xff795f); });
 });
+$('trainingBtn')?.addEventListener('click', () => {
+  enterTrainingMode();
+  if (!A.rival) loadAsset('rival').then(() => { RivalProto = cloneFitted(A.rival, 1.4, 0xff795f); });
+});
+$('trainingPushBtn')?.addEventListener('click', trainingForcePush);
+$('trainingJumpBtn')?.addEventListener('click', () => {
+  const me = beans.find(b => !b.ai);
+  if (me) { me.jumpBuffer = 0.14; keys.Space = true; setTimeout(() => { keys.Space = false; }, 80); }
+});
+$('trainingFallBtn')?.addEventListener('click', trainingSimulateFall);
+$('trainingExitBtn')?.addEventListener('click', exitTrainingMode);
+// Deep-link: ?training=1 or #training opens the sandbox once Start is ready.
+if (wantTrainingFromUrl() && renderer) {
+  const tryEnter = () => {
+    if ($('start') && !$('start').disabled) enterTrainingMode();
+    else setTimeout(tryEnter, 120);
+  };
+  setTimeout(tryEnter, 60);
+}
 setTimeout(loadThemeTile, 0);
 $('hookSkip')?.addEventListener('click', () => {
   hookSeen = true;
@@ -1421,7 +1571,7 @@ function loop() {
     });
     // Resolve deterministic test/debug falls during the countdown as well as during play.
     const localTumblingCount = beans.some(b => !b.ai && b.fallingDeath);
-    if (!localTumblingCount && beans.length && beans.filter(b => b.alive).length <= 1) {
+    if (!trainingMode && !localTumblingCount && beans.length && beans.filter(b => b.alive).length <= 1) {
       endRound({ end_reason: practiceRound ? 'practice_done' : 'last_alive' });
     }
     if (countdown <= 0 && state === 'count') {
@@ -1434,12 +1584,12 @@ function loop() {
     if (state === 'play') timer -= dt;
     const elapsed = roundSeconds - timer;
     const aliveTiles = tiles.filter(t => t.st === 'ok' || t.st === 'crack');
-    const sudden = !practiceRound && aliveTiles.length <= 4;
+    const sudden = !practiceRound && !trainingMode && aliveTiles.length <= 4;
     if ($('sudden')) $('sudden').classList.toggle('sudden-on', sudden);
     heartbeatT -= dt;
     if (sudden && heartbeatT <= 0) { heartbeatT = 0.58; playSfx('heartbeat'); }
     let warningStarted = false;
-    const scheduled = practiceRound ? [] : (sudden
+    const scheduled = (practiceRound || trainingMode) ? [] : (sudden
       ? tiles.filter(t => t.st === 'ok').sort((a, b) => Math.max(Math.abs(a.x), Math.abs(a.z)) - Math.max(Math.abs(b.x), Math.abs(b.z)))
       : tiles.filter(t => t.st === 'ok' && elapsed >= t.crackAt));
     for (const [i, t] of tiles.entries()) {
@@ -1485,7 +1635,7 @@ function loop() {
     spike.a += dt * (sudden ? 1.15 : 0.7);
     spike.m.position.set(Math.cos(spike.a) * 6, TILE_TOP + 0.05, Math.sin(spike.a * 1.3) * 6);
     spike.m.rotation.y += dt * 2;
-    if (mode === 'hazard-rain' && !practiceRound) {
+    if (mode === 'hazard-rain' && !practiceRound && !trainingMode) {
       hazardRainT -= dt;
       if (hazardRainT <= 0) {
         hazardRainT = 3.2;
@@ -1508,7 +1658,7 @@ function loop() {
       const d = b.p.clone().sub(spike.m.position);
       d.y = 0;
       b.hazardCd = Math.max(0, b.hazardCd - dt);
-      if (!practiceRound && d.length() < 1.3 && b.p.y < TILE_TOP + 1.6 && b.hazardCd <= 0) {
+      if (!practiceRound && !trainingMode && d.length() < 1.3 && b.p.y < TILE_TOP + 1.6 && b.hazardCd <= 0) {
         b.v.addScaledVector(d.normalize(), 14);
         b.v.y = Math.max(b.v.y, 6);
         b.hazardCd = 0.8;
@@ -1523,7 +1673,9 @@ function loop() {
       const localTumbling = beans.some(b => !b.ai && b.fallingDeath);
       const practiceElapsed = roundStart ? (performance.now() - roundStart) / 1000 : 0;
       // Hold result while the hero is still watching their own fall.
-      if (practiceRound && !roundEndFired && !localTumbling && (pushCount >= 1 || practiceElapsed >= 15)) {
+      if (trainingMode) {
+        // Infinite sandbox — never timer/last_alive fail.
+      } else if (practiceRound && !roundEndFired && !localTumbling && (pushCount >= 1 || practiceElapsed >= 15)) {
         endRound({ end_reason: 'practice_done' });
       } else if (!localTumbling && (alive.length <= 1 || timer <= 0)) {
         endRound({ end_reason: timer <= 0 ? 'timer' : 'last_alive' });
@@ -1565,9 +1717,29 @@ function loop() {
   const focusLookY = focus.y + (localDying ? 0.4 : 1.1);
   cameraPullback = Math.max(0, cameraPullback - frameDt * 1.8);
   if (slowMo > 0) slowMo = Math.max(0, slowMo - frameDt);
-  // Third-person chase yaw: smooth toward hero facing (over-shoulder / behind-bean).
-  const targetYaw = target?.m?.rotation?.y ?? camChaseYaw;
-  camChaseYaw = lerpAngle(camChaseYaw, targetYaw, reduceMotion ? 0.2 : 0.1);
+  // Chase yaw from movement wish (not double-lagged behind bean rotation.y).
+  // Industry: keep heading follow responsive; lag position more than yaw (SPARQ / CrimsonCamera).
+  let targetYaw = camChaseYaw;
+  if (target && !target.fallingDeath) {
+    const sx = target.steerX || 0;
+    const sz = target.steerZ || 0;
+    if (Math.hypot(sx, sz) > 0.08) targetYaw = Math.atan2(sx, sz);
+    else if (typeof target.lastWishYaw === 'number') targetYaw = target.lastWishYaw;
+    else targetYaw = target.m?.rotation?.y ?? camChaseYaw;
+  } else if (target?.m?.rotation) {
+    targetYaw = target.m.rotation.y;
+  }
+  let dyaw = targetYaw - camChaseYaw;
+  while (dyaw > Math.PI) dyaw -= Math.PI * 2;
+  while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+  // tau≈0.08–0.12; snappier when |Δyaw| large; reduceMotion nearer snap.
+  camYawTau = reduceMotion ? 0.05 : (Math.abs(dyaw) > 0.85 ? 0.08 : 0.11);
+  const yawAlpha = 1 - Math.exp(-Math.max(1e-4, frameDt) / camYawTau);
+  camChaseYaw = lerpAngle(camChaseYaw, targetYaw, yawAlpha);
+  if (!camTuneFired) {
+    camTuneFired = true;
+    __va('cam_tune', { tau_ms: Math.round(camYawTau * 1000) });
+  }
   // Damped one-shot shake in camera-local space (see punch()); never world-random sway.
   const allowShake = !reduceMotion && (state === 'play' || state === 'over' || Boolean(localDying));
   if (!allowShake) { shakeVel.set(0, 0, 0); shakeOffset.set(0, 0, 0); cameraPunch = 0; }
@@ -1611,16 +1783,26 @@ function loop() {
   if ($('hud')) {
     const spectateText = spectating && target ? ' · 观战：' + target.name : '';
     const practiceText = practiceRound ? (language === 'zh' ? ' · 练习局（无塌陷/Bot推挤）' : ' · Practice (no collapse / bot pushes)') : '';
-    const reviveText = (!practiceRound && scrambleRevivesLeft > 0)
+    const trainingText = trainingMode ? (language === 'zh' ? ' · 训练场' : ' · Training') : '';
+    const reviveText = (!practiceRound && !trainingMode && scrambleRevivesLeft > 0)
       ? (language === 'zh' ? ' · 复活×' + scrambleRevivesLeft : ' · Revive×' + scrambleRevivesLeft) : '';
     const scores = language === 'zh' ? '推人分 ' : 'Pushes ';
     const modeText = mode === 'no-push' ? ' · No-push' : mode === 'hazard-rain' ? ' · Hazard rain' : mode === 'ghost-trail' ? ' · Ghost trail' : '';
     const specText = spectating ? (language === 'zh' ? ' · 下一块预警：留意橙色裂纹' : ' · Next collapse: watch orange cracks') : '';
     const watermark = spectating && clipHandle ? ' · @' + clipHandle : '';
-    $('hud').innerHTML = state === 'menu' ? '' :
-      '⏱ ' + Math.max(0, timer).toFixed(0) + 's · 存活 ' + live.length + '/' + beans.length +
-      ' · ' + scores + (points['你'] || 0) + ' · 最佳连胜 ' + bestStreak + practiceText + reviveText + spectateText +
-      modeText + specText + watermark + '<br><small id="controls">' + tr('controls') + '</small>';
+    const hero = beans.find(b => !b.ai);
+    const clipName = hero?.m?.userData?.rig?.clip || hero?.actions && Object.keys(hero.actions).find(k => hero.actions[k]?.isRunning?.()) || 'idle';
+    if (trainingMode && $('trainingClip')) $('trainingClip').textContent = 'clip: ' + clipName;
+    if (trainingMode) {
+      $('hud').innerHTML = state === 'menu' ? '' :
+        '🛠 训练场 · clip <b>' + clipName + '</b>' +
+        '<br><small>WASD 走 · 空格跳 · E 推 · F 模拟坠落 · Esc 退出</small>';
+    } else {
+      $('hud').innerHTML = state === 'menu' ? '' :
+        '⏱ ' + Math.max(0, timer).toFixed(0) + 's · 存活 ' + live.length + '/' + beans.length +
+        ' · ' + scores + (points['你'] || 0) + ' · 最佳连胜 ' + bestStreak + practiceText + trainingText + reviveText + spectateText +
+        modeText + specText + watermark + '<br><small id="controls">' + tr('controls') + '</small>';
+    }
   }
   if (renderer) renderer.render(scene, cam);
 }
@@ -1634,9 +1816,12 @@ window.__game = {
   get watchingAfterLocalOut() { return watchingAfterLocalOut; },
   get lastEndReason() { return lastEndReason; },
   get practiceRound() { return practiceRound; },
+  get trainingMode() { return trainingMode; },
   get reduceMotion() { return reduceMotion; },
   get cameraPunch() { return cameraPunch; },
   get camChaseYaw() { return camChaseYaw; },
+  get camYawTau() { return camYawTau; },
+  get roundStart() { return roundStart; },
   get lastJuice() { return lastJuice; },
   get scrambleRevivesLeft() { return scrambleRevivesLeft; },
   get localFallingDeath() { return beans.find(b => !b.ai && b.fallingDeath) || null; },
@@ -1644,6 +1829,10 @@ window.__game = {
   get codeRig() { return true; },
   scrambleRevive,
   beginFallDeath,
+  enterTrainingMode,
+  exitTrainingMode,
+  trainingSimulateFall,
+  trainingForcePush,
   debugPush(bean) { triggerBeanPush(bean); pushBean(bean); },
   continueSpectate,
   spectateNextRound,
