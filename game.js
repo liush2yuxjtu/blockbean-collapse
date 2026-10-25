@@ -206,11 +206,21 @@ function applyTheme(next = theme) {
 function writeTile(index) {
   const t = tiles[index];
   const scale = t.st === 'gone' ? 0 : 1;
-  tileDummy.position.set(t.x + (t.st === 'crack' ? (Math.random() - 0.5) * 0.12 : 0), t.y, t.z);
-  tileDummy.scale.set(scale, scale, scale);
+  // Crack: stable lift + slow pulse (no Math.random per frame — that caused constant floor sway).
+  const pulse = t.st === 'crack' ? 0.05 + Math.sin(crackPulseT * 10 + index) * 0.035 : 0;
+  const warnBoost = t.st === 'crack' ? 1.06 + Math.sin(crackPulseT * 14 + index * 0.7) * 0.04 : 1;
+  tileDummy.position.set(t.x, t.y + pulse, t.z);
+  tileDummy.scale.set(scale * warnBoost, scale * (t.st === 'crack' ? 1.08 : 1), scale * warnBoost);
   tileDummy.updateMatrix();
   tileMesh.setMatrixAt(index, tileDummy.matrix);
-  tileColor.copy(t.st === 'crack' || t.st === 'fall' ? warnColor : t.st === 'gone' ? goneColor : solidColor);
+  if (t.st === 'crack') {
+    const flash = 0.55 + 0.45 * Math.max(0, Math.sin(crackPulseT * 16 + index));
+    tileColor.copy(warnColor).lerp(new THREE.Color(0xffffff), flash * 0.35);
+  } else if (t.st === 'fall') {
+    tileColor.copy(warnColor).lerp(new THREE.Color(0xff4400), 0.35);
+  } else {
+    tileColor.copy(t.st === 'gone' ? goneColor : solidColor);
+  }
   tileMesh.setColorAt(index, tileColor);
 }
 tiles.forEach((_, i) => writeTile(i));
@@ -275,6 +285,10 @@ let points = {};
 let roundStart = 0;
 let msgT = 0;
 let cameraPunch = 0;
+let shakeOffset = new THREE.Vector3();
+let shakeVel = new THREE.Vector3();
+let crackPulseT = 0;
+let lastJuice = { pushAt: 0, warnAt: 0, fallAt: 0 };
 let spectating = false;
 let followIndex = 0;
 let muted = localStorage.getItem('blockbean_muted') === '1';
@@ -284,8 +298,12 @@ const keys = input.keys;
 const touch = input.touch;
 let language = localStorage.getItem('blockbean_language') || 'zh';
 let paused = false;
-let reduceMotion = localStorage.getItem('blockbean_reduce_motion') === '1' ||
-  matchMedia('(prefers-reduced-motion: reduce)').matches;
+let reduceMotion = (() => {
+  const saved = localStorage.getItem('blockbean_reduce_motion');
+  if (saved === '1') return true;
+  if (saved === '0') return false;
+  return matchMedia('(prefers-reduced-motion: reduce)').matches;
+})();
 let slowMo = 0;
 let cameraPullback = 0;
 let pushCount = 0;
@@ -467,7 +485,13 @@ function flash(text, duration = 1.2) {
   if ($('msg')) $('msg').textContent = text;
   msgT = duration;
 }
-function punch(amount = 0.18) { if (!reduceMotion) cameraPunch = Math.max(cameraPunch, amount); }
+function punch(amount = 0.18) {
+  if (reduceMotion) return;
+  // Discrete one-shot kick; camera loop damps shakeVel/offset — no continuous random sway.
+  cameraPunch = Math.max(cameraPunch, amount);
+  shakeVel.x += (Math.random() - 0.5) * amount * 2.4;
+  shakeVel.y += (Math.random() - 0.5) * amount * 1.6;
+}
 function firstResultTip(kind) {
   if (kind !== 'out' && kind !== 'win') return '';
   if (tipSuppressed) return '';
@@ -496,12 +520,17 @@ function reset() {
   practiceRound = localStorage.getItem('blockbean_practice_done') !== '1';
   slowMo = 0;
   cameraPullback = 0;
+  cameraPunch = 0;
+  shakeOffset.set(0, 0, 0);
+  shakeVel.set(0, 0, 0);
   particles.splice(0).forEach(p => scene.remove(p.m));
   for (const [i, t] of tiles.entries()) {
     t.st = MAPS[mapVariant]?.hidden(t) ? 'gone' : 'ok'; t.blocked = t.st === 'gone'; t.t = 0; t.vy = 0; t.y = TILE_TOP - TILE_H / 2;
     t.crackAt = 999;
     writeTile(i);
   }
+  tileMesh.instanceMatrix.needsUpdate = true;
+  tileMesh.instanceColor.needsUpdate = true;
   const collapseOrder = [...tiles].sort((a, b) => {
     const ar = Math.max(Math.abs(a.i - 3.5), Math.abs(a.j - 3.5));
     const br = Math.max(Math.abs(b.i - 3.5), Math.abs(b.j - 3.5));
@@ -638,13 +667,27 @@ function pushBean(b) {
         b.comboT = 1.8;
         floatText(b.combo > 1 ? '双推！' : '再推！', o.p, '#ffe066');
       }
-      burst(o.p.clone().add(new THREE.Vector3(0, 0.7, 0)), 0xffe066, 16);
-      punch(0.22);
+      burst(o.p.clone().add(new THREE.Vector3(0, 0.7, 0)), 0xffe066, reduceMotion ? 6 : 28);
+      burst(o.p.clone().add(new THREE.Vector3(0, 0.4, 0)), 0xffffff, reduceMotion ? 3 : 12);
+      punch(0.34);
       if (o.m) {
-        o.m.scale.setScalar(1.16);
-        setTimeout(() => o.alive && o.m.scale.setScalar(1), 130);
+        o.m.scale.setScalar(1.28);
+        o.m.traverse(node => {
+          if (!node.isMesh || !node.material?.color) return;
+          if (!o._flashColor) o._flashColor = node.material.color.clone();
+          node.material.color.setHex(0xffffff);
+        });
+        setTimeout(() => {
+          if (!o.alive || !o.m) return;
+          o.m.scale.setScalar(1);
+          o.m.traverse(node => {
+            if (!node.isMesh || !node.material?.color || !o._flashColor) return;
+            node.material.color.copy(o._flashColor);
+          });
+        }, 140);
       }
       hit = true;
+      lastJuice.pushAt = performance.now();
       playSfx('push', clamp(o.p.x / 8, -1, 1));
       roundEvents.push({ at: performance.now(), type: 'push', x: o.p.x, z: o.p.z });
       __va('push_hit', { player: b.name, target: o.name, push_count: pushCount });
@@ -912,6 +955,7 @@ function applyLanguage() {
   if ($('pauseText')) $('pauseText').textContent = tr('pause');
   if ($('pauseOverlay') && !paused) $('pauseOverlay').hidden = true;
   if ($('pushBtn')) $('pushBtn').hidden = mode === 'no-push';
+  if ($('devSummary')) $('devSummary').textContent = language === 'en' ? 'Advanced / Dev settings' : '高级 / 开发设置';
 }
 function togglePause() {
   if (state === 'menu' || state === 'over') return;
@@ -1006,6 +1050,23 @@ setTimeout(() => {
   if ($('hookClip')) { $('hookClip').classList.add('hook-done', 'hook-frozen'); }
   __va('hook_view', { duration_s: 3 });
 }, 3000);
+
+(function initDevPanel() {
+  const panel = $('devPanel');
+  if (!panel) return;
+  const params = new URLSearchParams(location.search);
+  const wantDev = params.get('dev') === '1' || localStorage.getItem('blockbean_dev') === '1';
+  if (params.get('dev') === '1') localStorage.setItem('blockbean_dev', '1');
+  if (params.get('dev') === '0') localStorage.removeItem('blockbean_dev');
+  // Always keep in DOM but collapsed; only auto-open for explicit dev flag.
+  panel.hidden = false;
+  if (wantDev) panel.open = true;
+  const summary = $('devSummary');
+  if (summary) {
+    summary.textContent = language === 'en' ? 'Advanced / Dev settings' : '高级 / 开发设置';
+  }
+  __va('splash_dev_panel', { open: panel.open, want_dev: wantDev });
+})();
 $('langBtn')?.addEventListener('click', toggleLanguage);
 $('motionBtn')?.addEventListener('click', toggleMotion);
 applyLanguage();
@@ -1093,8 +1154,10 @@ function loop() {
         t.t = sudden ? 0.55 : 1.05;
         warningStarted = true;
         writeTile(i);
-        burst(new THREE.Vector3(t.x, TILE_TOP + 0.35, t.z), 0xff7b28, 8);
-        punch(sudden ? 0.23 : 0.12);
+        burst(new THREE.Vector3(t.x, TILE_TOP + 0.35, t.z), 0xff7b28, reduceMotion ? 4 : 18);
+        burst(new THREE.Vector3(t.x, TILE_TOP + 0.15, t.z), 0xffee88, reduceMotion ? 2 : 10);
+        punch(sudden ? 0.2 : 0.1);
+        lastJuice.warnAt = performance.now();
         playSfx('warn');
         __va('tile_warn', { tile: i, sudden });
       } else if (t.st === 'crack') {
@@ -1103,9 +1166,11 @@ function loop() {
           t.st = 'fall';
           t.vy = 0;
           writeTile(i);
-          punch(sudden ? 0.3 : 0.16);
+          punch(sudden ? 0.28 : 0.18);
           playSfx('fall');
-          burst(new THREE.Vector3(t.x, TILE_TOP, t.z), 0xffaa44, reduceMotion ? 5 : 24);
+          burst(new THREE.Vector3(t.x, TILE_TOP, t.z), 0xffaa44, reduceMotion ? 6 : 36);
+          burst(new THREE.Vector3(t.x, TILE_TOP - 0.2, t.z), 0x8b5a2b, reduceMotion ? 3 : 16);
+          lastJuice.fallAt = performance.now();
           __va('tile_fall', { tile: i });
         } else writeTile(i);
       } else if (t.st === 'fall') {
@@ -1115,6 +1180,8 @@ function loop() {
         writeTile(i);
       }
     }
+    tileMesh.instanceMatrix.needsUpdate = true;
+    tileMesh.instanceColor.needsUpdate = true;
     spike.a += dt * (sudden ? 1.15 : 0.7);
     spike.m.position.set(Math.cos(spike.a) * 6, TILE_TOP + 0.05, Math.sin(spike.a * 1.3) * 6);
     spike.m.rotation.y += dt * 2;
@@ -1167,15 +1234,49 @@ function loop() {
     const ghost = trailGhosts[i]; ghost.t -= frameDt; ghost.m.material.opacity = Math.max(0, ghost.t * 0.28);
     if (ghost.t <= 0) { scene.remove(ghost.m); trailGhosts.splice(i, 1); }
   }
+  crackPulseT += frameDt;
+  // Keep crack edge-glow matrices fresh without random floor jitter.
+  if (state === 'play' || state === 'over') {
+    let crackDirty = false;
+    for (let i = 0; i < tiles.length; i++) {
+      if (tiles[i].st === 'crack') { writeTile(i); crackDirty = true; }
+    }
+    if (crackDirty) {
+      tileMesh.instanceMatrix.needsUpdate = true;
+      tileMesh.instanceColor.needsUpdate = true;
+    }
+  }
   const live = beans.filter(b => b.alive);
   let target = beans[0];
   if (spectating && live.length) target = live[followIndex % live.length];
   const focus = target?.p || new THREE.Vector3();
+  cameraPullback = Math.max(0, cameraPullback - frameDt * 1.8);
+  if (slowMo > 0) slowMo = Math.max(0, slowMo - frameDt);
+  // Damped one-shot shake (impulse via punch()); never re-randomize into the follow target each frame.
+  const allowShake = !reduceMotion && (state === 'play' || state === 'over');
+  if (!allowShake) { shakeVel.set(0, 0, 0); shakeOffset.set(0, 0, 0); cameraPunch = 0; }
+  else {
+    shakeOffset.x += shakeVel.x;
+    shakeOffset.y += shakeVel.y;
+    shakeVel.multiplyScalar(Math.exp(-frameDt * 14));
+    shakeOffset.multiplyScalar(Math.exp(-frameDt * 10));
+    cameraPunch = Math.max(0, cameraPunch - frameDt * 2.6);
+    if (cameraPunch < 0.01 && shakeOffset.lengthSq() < 1e-5) {
+      cameraPunch = 0;
+      shakeOffset.set(0, 0, 0);
+      shakeVel.set(0, 0, 0);
+    }
+  }
   const desired = new THREE.Vector3(focus.x, focus.y + 9, focus.z + 11 + cameraPullback);
-  const shake = cameraPunch > 0 ? new THREE.Vector3((Math.random() - 0.5) * cameraPunch, (Math.random() - 0.5) * cameraPunch, 0) : new THREE.Vector3();
-  if (!freeLook) { cam.position.lerp(desired.add(shake), reduceMotion ? 0.24 : 0.12); cam.lookAt(focus.x, focus.y, focus.z); }
-  cameraPunch = Math.max(0, cameraPunch - dt * 1.7);
-  cam.fov = baseFov + cameraPunch * 18;
+  // Snappy follow when idle; slightly softer only during an active punch.
+  const follow = reduceMotion ? 0.28 : (cameraPunch > 0 ? 0.16 : 0.22);
+  if (!freeLook) {
+    cam.position.lerp(desired, follow);
+    cam.position.x += shakeOffset.x;
+    cam.position.y += shakeOffset.y;
+    cam.lookAt(focus.x, focus.y, focus.z);
+  }
+  cam.fov = baseFov + (allowShake ? cameraPunch * 22 : 0);
   cam.updateProjectionMatrix();
   if ($('hud')) {
     const spectateText = spectating && target ? ' · 观战：' + target.name : '';
@@ -1201,6 +1302,9 @@ window.__game = {
   get watchingAfterLocalOut() { return watchingAfterLocalOut; },
   get lastEndReason() { return lastEndReason; },
   get practiceRound() { return practiceRound; },
+  get reduceMotion() { return reduceMotion; },
+  get cameraPunch() { return cameraPunch; },
+  get lastJuice() { return lastJuice; },
   continueSpectate,
   spectateNextRound,
   leaveSpectateToLobby,

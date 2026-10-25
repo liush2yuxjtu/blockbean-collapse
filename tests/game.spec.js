@@ -28,6 +28,8 @@ async function bootGame(page, { practiceDone = true } = {}) {
     localStorage.removeItem('blockbean_tip_out_seen');
     localStorage.removeItem('blockbean_tip_win_seen');
     localStorage.removeItem('blockbean_tip_never');
+    localStorage.removeItem('blockbean_dev');
+    localStorage.setItem('blockbean_reduce_motion', '0');
   }, { practiceDone });
 
   await page.goto('/', { waitUntil: 'domcontentloaded' });
@@ -172,6 +174,79 @@ test('P0 local-out shows result + round_end; spectate next/leave work', async ({
   const roundEnds = await page.evaluate(() => (window.__vaEvents || []).filter(e => e?.name === 'round_end'));
   expect(roundEnds.length).toBeGreaterThanOrEqual(2);
   expect(roundEnds.every(e => e.data?.end_reason === 'local_out')).toBeTruthy();
+
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});
+
+test('player splash hides developer settings grid by default', async ({ page }) => {
+  test.setTimeout(60_000);
+  const { pageErrors, start, fallback } = await bootGame(page);
+
+  // Settings knobs must not paint as an open wall for new players.
+  const panel = page.locator('#devPanel');
+  await expect(panel).toBeAttached();
+  await expect(panel).toBeVisible();
+  await expect(panel).not.toHaveAttribute('open', '');
+  await expect(page.locator('#settings')).toBeHidden();
+  await expect(page.locator('#modeSelect')).toBeHidden();
+  await expect(page.locator('#botSelect')).toBeHidden();
+  await expect(page.locator('#start')).toBeVisible();
+  await expect(page.locator('#motionBtn')).toBeVisible();
+  await expect(page.locator('#langBtn')).toBeVisible();
+
+  // Explicit ?dev=1 may open the panel for developers.
+  await page.goto('/?dev=1', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#devPanel')).toHaveAttribute('open', '');
+  await expect(page.locator('#settings')).toBeVisible();
+
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+  if (await fallback.isVisible()) return;
+  await expect(start).toBeEnabled({ timeout: 30_000 }).catch(() => {});
+});
+
+test('push and collapse juice hooks fire on real round', async ({ page }) => {
+  test.setTimeout(90_000);
+  const { pageErrors, start, fallback } = await bootGame(page, { practiceDone: true });
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    return;
+  }
+  await start.click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 10_000 })
+    .toBe('play');
+
+  // Place a rival directly in front of the local bean and press push.
+  expect(await page.evaluate(() => {
+    const g = window.__game;
+    const me = g.beans.find(b => b.name === '你');
+    const rival = g.beans.find(b => b.ai && b.alive);
+    if (!me || !rival) return false;
+    me.m.rotation.y = 0;
+    me.cd = 0;
+    me.p.set(0, me.p.y, 0);
+    me.m.position.copy(me.p);
+    rival.p.set(0, me.p.y, 1.1);
+    rival.m.position.copy(rival.p);
+    rival.v.set(0, 0, 0);
+    return true;
+  })).toBeTruthy();
+
+  await page.keyboard.press('KeyE');
+  await expect.poll(() => page.evaluate(() => (window.__game?.lastJuice?.pushAt || 0) > 0), { timeout: 5_000 }).toBeTruthy();
+
+  // Schedule immediate crack on a solid tile (real round — not practice).
+  await page.evaluate(() => {
+    const t = window.__game.tiles.find(tile => tile.st === 'ok');
+    if (t) t.crackAt = -1;
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const j = window.__game?.lastJuice;
+    return Boolean(j && (j.warnAt > 0 || j.fallAt > 0));
+  }), { timeout: 8_000 }).toBeTruthy();
+
+  // One-shot punch must damp out (no continuous sway stuck on).
+  await page.waitForTimeout(600);
+  await expect.poll(() => page.evaluate(() => (window.__game?.cameraPunch || 0) < 0.05)).toBeTruthy();
 
   expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
 });
