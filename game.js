@@ -206,18 +206,20 @@ function applyTheme(next = theme) {
 function writeTile(index) {
   const t = tiles[index];
   const scale = t.st === 'gone' ? 0 : 1;
-  // Crack: stable lift + slow pulse (no Math.random per frame — that caused constant floor sway).
-  const pulse = t.st === 'crack' ? 0.05 + Math.sin(crackPulseT * 10 + index) * 0.035 : 0;
-  const warnBoost = t.st === 'crack' ? 1.06 + Math.sin(crackPulseT * 14 + index * 0.7) * 0.04 : 1;
+  // Crack: thicker lift + brighter pulse so warn reads on grass/ice/neon default themes.
+  const pulse = t.st === 'crack' ? 0.12 + Math.sin(crackPulseT * 8 + index) * 0.08 : 0;
+  const warnBoost = t.st === 'crack' ? 1.14 + Math.sin(crackPulseT * 11 + index * 0.7) * 0.08 : 1;
   tileDummy.position.set(t.x, t.y + pulse, t.z);
-  tileDummy.scale.set(scale * warnBoost, scale * (t.st === 'crack' ? 1.08 : 1), scale * warnBoost);
+  tileDummy.scale.set(scale * warnBoost, scale * (t.st === 'crack' ? 1.22 : 1), scale * warnBoost);
   tileDummy.updateMatrix();
   tileMesh.setMatrixAt(index, tileDummy.matrix);
   if (t.st === 'crack') {
-    const flash = 0.55 + 0.45 * Math.max(0, Math.sin(crackPulseT * 16 + index));
-    tileColor.copy(warnColor).lerp(new THREE.Color(0xffffff), flash * 0.35);
+    const flash = 0.35 + 0.65 * Math.max(0, Math.sin(crackPulseT * 12 + index));
+    // Hot white-yellow edge so crack is obvious even on warm grass warnColor.
+    tileColor.copy(warnColor).lerp(new THREE.Color(0xffffff), 0.45 + flash * 0.5);
+    tileColor.lerp(new THREE.Color(0xffee55), 0.25 * flash);
   } else if (t.st === 'fall') {
-    tileColor.copy(warnColor).lerp(new THREE.Color(0xff4400), 0.35);
+    tileColor.copy(warnColor).lerp(new THREE.Color(0xff2200), 0.55);
   } else {
     tileColor.copy(t.st === 'gone' ? goneColor : solidColor);
   }
@@ -288,7 +290,9 @@ let cameraPunch = 0;
 let shakeOffset = new THREE.Vector3();
 let shakeVel = new THREE.Vector3();
 let crackPulseT = 0;
-let lastJuice = { pushAt: 0, warnAt: 0, fallAt: 0 };
+let lastJuice = { pushAt: 0, pushedAt: 0, warnAt: 0, fallAt: 0, reviveAt: 0 };
+// Fall Guys lean: 1 mid-round scramble revive (race-checkpoint pattern), not infinite.
+let scrambleRevivesLeft = 1;
 let spectating = false;
 let followIndex = 0;
 let muted = localStorage.getItem('blockbean_muted') === '1';
@@ -450,12 +454,17 @@ function noise(duration = 0.12, gain = 0.05) {
   src.start();
 }
 function playSfx(kind, pan = 0) {
-  const caption = { warn: '⚠️ 预警砖', fall: '⬇️ 地块塌陷', push: '💥 推击命中', heartbeat: '💓 最后平台', win: '🏆 胜利', out: '❌ 出局' }[kind];
+  const caption = {
+    warn: '⚠️ 预警砖', fall: '⬇️ 地块塌陷', push: '💥 推击命中', pushed: '💫 被击退',
+    revive: '🫘 豆豆复活', heartbeat: '💓 最后平台', win: '🏆 胜利', out: '❌ 出局'
+  }[kind];
   if (caption && $('captions')) { $('captions').textContent = caption; $('captions').classList.add('show'); setTimeout(() => $('captions')?.classList.remove('show'), 900); }
   if (bgmGain && audio) bgmGain.gain.setTargetAtTime(kind === 'warn' ? 0.004 : (muted ? 0 : volume * 0.018), audio.currentTime, 0.08);
-  if (kind === 'warn') { tone(180, 0.09, 'square', 0.03); tone(110, 0.05, 'square', 0.015); }
+  if (kind === 'warn') { tone(220, 0.14, 'square', 0.055); tone(140, 0.1, 'square', 0.03); tone(90, 0.06, 'square', 0.02); }
   if (kind === 'fall') { tone(90, 0.18, 'sawtooth', 0.04); noise(0.14, 0.04); }
   if (kind === 'push') { tone(420, 0.07, 'triangle', 0.045, pan); tone(620, 0.05, 'triangle', 0.025, pan); }
+  if (kind === 'pushed') { tone(180, 0.09, 'sawtooth', 0.05, pan); tone(90, 0.12, 'triangle', 0.035, pan); noise(0.06, 0.025); }
+  if (kind === 'revive') { tone(360, 0.1, 'triangle', 0.045); setTimeout(() => tone(540, 0.14, 'triangle', 0.04), 70); }
   if (kind === 'heartbeat') tone(90, 0.11, 'sine', 0.035);
   if (kind === 'win') { tone(520, 0.12, 'triangle', 0.04); setTimeout(() => tone(780, 0.18, 'triangle', 0.04), 80); }
   if (kind === 'out') { tone(150, 0.24, 'sawtooth', 0.04); noise(0.1, 0.02); }
@@ -518,6 +527,8 @@ function reset() {
   pushCount = 0;
   roundDuration = 0;
   practiceRound = localStorage.getItem('blockbean_practice_done') !== '1';
+  // Formal rounds get 1 scramble revive; practice already has no lethal collapse.
+  scrambleRevivesLeft = practiceRound ? 0 : 1;
   slowMo = 0;
   cameraPullback = 0;
   cameraPunch = 0;
@@ -593,7 +604,8 @@ function tileAt(x, z) {
   return i >= 0 && j >= 0 && i < GRID && j < GRID ? tiles[i * GRID + j] : null;
 }
 function supportingTile(b) {
-  const half = 0.52;
+  // Soft ledge cling: slightly larger foot so grazing a tile edge still counts (Fall Guys soft-edge feel).
+  const half = 0.68;
   let best = null;
   for (const t of tiles) {
     if (t.st === 'gone' || t.st === 'fall') continue;
@@ -615,6 +627,55 @@ function chooseTarget(b) {
     return { t, score: dist * 0.5 + (spikeDist < 3.2 ? 8 * BALANCE.ai[aiLevel] : 0) + edge * (0.2 / BALANCE.ai[aiLevel]) + Math.random() * 2 };
   }).sort((a, c) => a.score - c.score);
   return ranked[0].t;
+}
+function pickSafeTileNear(prefer = null) {
+  const safe = tiles.filter(t => t.st === 'ok' || t.st === 'crack');
+  if (!safe.length) return null;
+  if (prefer) {
+    safe.sort((a, c) => {
+      const da = Math.hypot(a.x - prefer.x, a.z - prefer.z);
+      const dc = Math.hypot(c.x - prefer.x, c.z - prefer.z);
+      return da - dc;
+    });
+  } else {
+    safe.sort((a, c) => Math.hypot(a.x, a.z) - Math.hypot(c.x, c.z));
+  }
+  return safe[0];
+}
+function scrambleRevive(b) {
+  const pad = pickSafeTileNear(b.p);
+  if (!pad) return false;
+  scrambleRevivesLeft = Math.max(0, scrambleRevivesLeft - 1);
+  b.alive = true;
+  b.told = false;
+  b.p.set(pad.x, TILE_TOP + 0.15, pad.z);
+  b.v.set(0, 4.5, 0);
+  b.ground = false;
+  b.coyote = 0.28;
+  b.stunT = 0.18;
+  b.invulnT = 1.35;
+  b.steerX = 0;
+  b.steerZ = 0;
+  if (b.m.parent !== scene) scene.add(b.m);
+  b.m.position.copy(b.p);
+  b.m.scale.setScalar(1.35);
+  setTimeout(() => { if (b.alive && b.m) b.m.scale.setScalar(1); }, 220);
+  burst(b.p.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xfff0a0, reduceMotion ? 8 : 36);
+  burst(b.p.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x9be7c4, reduceMotion ? 4 : 18);
+  punch(0.28);
+  playSfx('revive');
+  flash(language === 'zh' ? '豆豆复活！本局最后一次' : 'Bean revive! Last chance this round', 1.8);
+  floatText(language === 'zh' ? '复活!' : 'Revive!', b.p, '#9be7c4');
+  lastJuice.reviveAt = performance.now();
+  const flashEl = $('impactFlash');
+  if (flashEl && !reduceMotion) {
+    flashEl.classList.remove('flash-now', 'pushed-now', 'revive-now');
+    void flashEl.offsetWidth;
+    flashEl.classList.add('revive-now');
+  }
+  __va('scramble_revive', { remaining: scrambleRevivesLeft, survival_s: survivalSeconds() });
+  roundEvents.push({ at: performance.now(), type: 'revive', x: b.p.x, z: b.p.z });
+  return true;
 }
 function inputFor(b) {
   if (!b.ai) return readPlayerInput(input, humanInputBindings[b.human || 1]);
@@ -653,8 +714,10 @@ function pushBean(b) {
   const pushSpec = BALANCE.push[pushLevel] || BALANCE.push.default;
   const f = new THREE.Vector3(Math.sin(b.m.rotation.y), 0, Math.cos(b.m.rotation.y));
   let hit = false;
+  let localVictim = false;
   for (const o of beans) {
     if (o === b || !o.alive) continue;
+    if (o.invulnT > 0) continue;
     const delta = o.p.clone().sub(b.p);
     delta.y = 0;
     if (delta.length() < 2.0 && delta.normalize().dot(f) > 0.15) {
@@ -686,6 +749,16 @@ function pushBean(b) {
           });
         }, 140);
       }
+      // Victim juice: when a human is knocked back, mirror push-hit feedback for the receiver.
+      if (!o.ai) {
+        localVictim = true;
+        o.stunT = Math.max(o.stunT, 0.14);
+        floatText(language === 'zh' ? '击退!' : 'Knockback!', o.p, '#ff9aa8');
+        punch(0.42);
+        playSfx('pushed', clamp(o.p.x / 8, -1, 1));
+        lastJuice.pushedAt = performance.now();
+        __va('push_received', { player: o.name, from: b.name });
+      }
       hit = true;
       lastJuice.pushAt = performance.now();
       playSfx('push', clamp(o.p.x / 8, -1, 1));
@@ -694,23 +767,46 @@ function pushBean(b) {
     }
   }
   if (hit && !reduceMotion) {
-    const flash = $('impactFlash');
-    if (flash) { flash.classList.remove('flash-now'); void flash.offsetWidth; flash.classList.add('flash-now'); }
+    const flashEl = $('impactFlash');
+    if (flashEl) {
+      flashEl.classList.remove('flash-now', 'pushed-now', 'revive-now');
+      void flashEl.offsetWidth;
+      flashEl.classList.add(localVictim ? 'pushed-now' : 'flash-now');
+    }
   }
 }
 function control(b, dt) {
   b.comboT = Math.max(0, b.comboT - dt);
   if (!b.comboT) b.combo = 0;
-  const input = inputFor(b);
-  const len = Math.hypot(input.mx, input.mz) || 1;
+  b.stunT = Math.max(0, (b.stunT || 0) - dt);
+  b.invulnT = Math.max(0, (b.invulnT || 0) - dt);
+  const raw = inputFor(b);
+  // Analog-smooth: interpolate input vector so digital WASD / AI seek don't snap to 8 dirs.
+  const rawLen = Math.hypot(raw.mx, raw.mz);
+  const cap = Math.min(1, rawLen || 0);
+  const tx = rawLen > 1e-4 ? (raw.mx / rawLen) * cap : 0;
+  const tz = rawLen > 1e-4 ? (raw.mz / rawLen) * cap : 0;
+  const steerRate = rawLen > 0.05 ? (b.ai ? 7.5 : 9.5) : (b.ai ? 5.5 : 7);
+  b.steerX += (tx - b.steerX) * Math.min(1, steerRate * dt);
+  b.steerZ += (tz - b.steerZ) * Math.min(1, steerRate * dt);
+  if (Math.hypot(b.steerX, b.steerZ) < 0.02 && rawLen < 0.05) { b.steerX = 0; b.steerZ = 0; }
+  const stunned = b.stunT > 0;
+  const sx = stunned ? 0 : b.steerX;
+  const sz = stunned ? 0 : b.steerZ;
   const speed = 6;
-  const accel = b.ground ? 12 : 4;
-  const ax = input.mx / len * speed;
-  const az = input.mz / len * speed;
+  const accel = b.ground ? (rawLen > 0.05 ? 8.5 : 10) : 3.2;
+  const ax = sx * speed;
+  const az = sz * speed;
   b.v.x += (ax - b.v.x) * Math.min(1, accel * dt);
   b.v.z += (az - b.v.z) * Math.min(1, accel * dt);
-  if (input.mx || input.mz) b.m.rotation.y = Math.atan2(input.mx, input.mz);
-  if (input.jump) b.jumpBuffer = 0.14;
+  if (Math.hypot(sx, sz) > 0.08) {
+    const face = Math.atan2(sx, sz);
+    let dy = face - b.m.rotation.y;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    b.m.rotation.y += dy * Math.min(1, 12 * dt);
+  }
+  if (!stunned && raw.jump) b.jumpBuffer = 0.14;
   if (b.jumpBuffer > 0) b.jumpBuffer -= dt;
   if (b.coyote > 0) b.coyote -= dt;
   if (b.jumpBuffer > 0 && (b.ground || b.coyote > 0)) {
@@ -721,7 +817,7 @@ function control(b, dt) {
     tone(340, 0.06, 'triangle', 0.025);
   }
   b.cd -= dt;
-  if (input.push && b.cd <= 0 && mode !== 'no-push' && (!practiceRound || !b.ai)) {
+  if (!stunned && raw.push && b.cd <= 0 && mode !== 'no-push' && (!practiceRound || !b.ai)) {
     b.cd = (BALANCE.push[pushLevel] || BALANCE.push.default).cooldown;
     pushBean(b);
     b.m.scale.setScalar(1.2);
@@ -745,20 +841,26 @@ function physics(b, dt) {
       setTimeout(() => b.alive && b.m.scale.set(1, 1, 1), 120);
     }
   }
-  if (wasGround && !b.ground) b.coyote = 0.14;
+  // Longer coyote + soft ledge (supportingTile half) soften one-mistake deaths (Fall Guys fair-fail pillar).
+  if (wasGround && !b.ground) b.coyote = 0.22;
   if (b.p.y < -15) {
-    b.alive = false;
-    scene.remove(b.m);
-    if (!b.ai) {
-      spectating = true;
-      slowMo = 1.1;
-      cameraPullback = 3;
-      playSfx('out');
-      __va('player_eliminated', { survival_s: Math.round((performance.now() - roundStart) / 1000), cause: 'fell' });
-      // Result-first: local fall ends the player's run immediately (spectate optional).
-      endRound({ end_reason: practiceRound ? 'practice_done' : 'local_out' });
+    const canRevive = !b.ai && !practiceRound && scrambleRevivesLeft > 0 && state === 'play' && !roundEndFired;
+    if (canRevive && scrambleRevive(b)) {
+      // Fall Guys race-checkpoint pattern, lean: one scramble revive then result-first.
     } else {
-      flash(`${b.name} 出局！`, 0.8);
+      b.alive = false;
+      scene.remove(b.m);
+      if (!b.ai) {
+        spectating = true;
+        slowMo = 1.1;
+        cameraPullback = 3;
+        playSfx('out');
+        __va('player_eliminated', { survival_s: Math.round((performance.now() - roundStart) / 1000), cause: 'fell' });
+        // Result-first: final local fall ends the player's run (spectate optional).
+        endRound({ end_reason: practiceRound ? 'practice_done' : 'local_out' });
+      } else {
+        flash(`${b.name} 出局！`, 0.8);
+      }
     }
   }
   b.m.position.copy(b.p);
@@ -989,8 +1091,10 @@ function bindTouch() {
     const dx = e.clientX - (r.left + r.width / 2);
     const dz = e.clientY - (r.top + r.height / 2);
     const max = r.width * 0.34;
-    const x = Math.max(-1, Math.min(1, dx / max));
-    const z = Math.max(-1, Math.min(1, dz / max));
+    let x = dx / max;
+    let z = dz / max;
+    const stickLen = Math.hypot(x, z);
+    if (stickLen > 1) { x /= stickLen; z /= stickLen; }
     touch.x = x; touch.z = z;
     knob.style.transform = `translate(${x * max}px,${z * max}px)`;
   };
@@ -1151,14 +1255,20 @@ function loop() {
     for (const [i, t] of tiles.entries()) {
       if (t.st === 'ok' && !warningStarted && scheduled[0] === t) {
         t.st = 'crack';
-        t.t = sudden ? 0.55 : 1.05;
+        t.t = sudden ? 0.85 : 1.55;
         warningStarted = true;
         writeTile(i);
-        burst(new THREE.Vector3(t.x, TILE_TOP + 0.35, t.z), 0xff7b28, reduceMotion ? 4 : 18);
-        burst(new THREE.Vector3(t.x, TILE_TOP + 0.15, t.z), 0xffee88, reduceMotion ? 2 : 10);
-        punch(sudden ? 0.2 : 0.1);
+        burst(new THREE.Vector3(t.x, TILE_TOP + 0.35, t.z), 0xff7b28, reduceMotion ? 4 : 22);
+        burst(new THREE.Vector3(t.x, TILE_TOP + 0.15, t.z), 0xffee88, reduceMotion ? 2 : 14);
+        punch(sudden ? 0.24 : 0.14);
         lastJuice.warnAt = performance.now();
         playSfx('warn');
+        const crackFlash = $('crackWarn');
+        if (crackFlash && !reduceMotion) {
+          crackFlash.classList.remove('warn-now');
+          void crackFlash.offsetWidth;
+          crackFlash.classList.add('warn-now');
+        }
         __va('tile_warn', { tile: i, sudden });
       } else if (t.st === 'crack') {
         t.t -= dt;
@@ -1281,13 +1391,15 @@ function loop() {
   if ($('hud')) {
     const spectateText = spectating && target ? ' · 观战：' + target.name : '';
     const practiceText = practiceRound ? (language === 'zh' ? ' · 练习局（无塌陷/Bot推挤）' : ' · Practice (no collapse / bot pushes)') : '';
+    const reviveText = (!practiceRound && scrambleRevivesLeft > 0)
+      ? (language === 'zh' ? ' · 复活×' + scrambleRevivesLeft : ' · Revive×' + scrambleRevivesLeft) : '';
     const scores = language === 'zh' ? '推人分 ' : 'Pushes ';
     const modeText = mode === 'no-push' ? ' · No-push' : mode === 'hazard-rain' ? ' · Hazard rain' : mode === 'ghost-trail' ? ' · Ghost trail' : '';
     const specText = spectating ? (language === 'zh' ? ' · 下一块预警：留意橙色裂纹' : ' · Next collapse: watch orange cracks') : '';
     const watermark = spectating && clipHandle ? ' · @' + clipHandle : '';
     $('hud').innerHTML = state === 'menu' ? '' :
       '⏱ ' + Math.max(0, timer).toFixed(0) + 's · 存活 ' + live.length + '/' + beans.length +
-      ' · ' + scores + (points['你'] || 0) + ' · 最佳连胜 ' + bestStreak + practiceText + spectateText +
+      ' · ' + scores + (points['你'] || 0) + ' · 最佳连胜 ' + bestStreak + practiceText + reviveText + spectateText +
       modeText + specText + watermark + '<br><small id="controls">' + tr('controls') + '</small>';
   }
   if (renderer) renderer.render(scene, cam);
@@ -1305,6 +1417,9 @@ window.__game = {
   get reduceMotion() { return reduceMotion; },
   get cameraPunch() { return cameraPunch; },
   get lastJuice() { return lastJuice; },
+  get scrambleRevivesLeft() { return scrambleRevivesLeft; },
+  scrambleRevive,
+  debugPush(bean) { pushBean(bean); },
   continueSpectate,
   spectateNextRound,
   leaveSpectateToLobby,
