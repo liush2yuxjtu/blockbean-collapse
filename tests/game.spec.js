@@ -115,10 +115,32 @@ test('P0 local-out shows result + round_end; spectate next/leave work', async ({
   await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 10_000 })
     .toBe('play');
 
-  // Drop only the local player through physics (do not mark alive=false yourself).
+  // Formal rounds grant 1 scramble revive (Fall Guys mid-round checkpoint pattern).
+  await expect.poll(() => page.evaluate(() => window.__game?.scrambleRevivesLeft)).toBe(1);
+
+  // First fall → revive, still in play.
   expect(await page.evaluate(() => {
     const me = window.__game?.beans?.find(b => b.name === '你');
     if (!me) return false;
+    me.p.y = -20;
+    me.v.y = -1;
+    return true;
+  })).toBe(true);
+
+  await expect.poll(() => page.evaluate(() => {
+    const events = window.__vaEvents || [];
+    const revived = events.some(e => e?.name === 'scramble_revive');
+    const me = window.__game?.beans?.find(b => b.name === '你');
+    return revived && me?.alive === true && window.__game?.scrambleRevivesLeft === 0 && window.__game?.state === 'play';
+  }), { timeout: 8_000 }).toBeTruthy();
+  await expect.poll(() => page.evaluate(() => (window.__game?.lastJuice?.reviveAt || 0) > 0)).toBeTruthy();
+  await expect(page.locator('#result')).toBeHidden();
+
+  // Second fall → result-first local_out (no more revives).
+  expect(await page.evaluate(() => {
+    const me = window.__game?.beans?.find(b => b.name === '你');
+    if (!me) return false;
+    me.invulnT = 0;
     me.p.y = -20;
     me.v.y = -1;
     return true;
@@ -156,9 +178,19 @@ test('P0 local-out shows result + round_end; spectate next/leave work', async ({
 
   await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 10_000 })
     .toBe('play');
+  // Burn free revive, then fall again for local_out.
   expect(await page.evaluate(() => {
     const me = window.__game?.beans?.find(b => b.name === '你');
     if (!me) return false;
+    me.p.y = -20;
+    me.v.y = -1;
+    return true;
+  })).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__game?.scrambleRevivesLeft === 0 && window.__game?.beans?.find(b => b.name === '你')?.alive), { timeout: 8_000 }).toBeTruthy();
+  expect(await page.evaluate(() => {
+    const me = window.__game?.beans?.find(b => b.name === '你');
+    if (!me) return false;
+    me.invulnT = 0;
     me.p.y = -20;
     me.v.y = -1;
     return true;
@@ -243,6 +275,14 @@ test('push and collapse juice hooks fire on real round', async ({ page }) => {
     const j = window.__game?.lastJuice;
     return Boolean(j && (j.warnAt > 0 || j.fallAt > 0));
   }), { timeout: 8_000 }).toBeTruthy();
+  await expect(page.locator('#crackWarn')).toBeAttached();
+
+  // Analog steer fields exist on beans (smooth movement path).
+  await expect.poll(() => page.evaluate(() => {
+    const me = window.__game?.beans?.find(b => b.name === '你');
+    const bot = window.__game?.beans?.find(b => b.ai);
+    return typeof me?.steerX === 'number' && typeof bot?.steerX === 'number';
+  })).toBeTruthy();
 
   // One-shot punch must damp out (no continuous sway stuck on).
   await page.waitForTimeout(600);
@@ -250,3 +290,42 @@ test('push and collapse juice hooks fire on real round', async ({ page }) => {
 
   expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
 });
+
+test('victim knockback juice when rival pushes local bean', async ({ page }) => {
+  test.setTimeout(90_000);
+  const { pageErrors, start, fallback } = await bootGame(page, { practiceDone: true });
+  if (await fallback.isVisible()) {
+    await expect(fallback).toContainText(/WebGL|渲染|fallback/i);
+    return;
+  }
+  await start.click();
+  await expect.poll(() => page.evaluate(() => window.__game?.state ?? 'missing'), { timeout: 10_000 })
+    .toBe('play');
+
+  expect(await page.evaluate(() => {
+    const g = window.__game;
+    const me = g.beans.find(b => b.name === '你');
+    const rival = g.beans.find(b => b.ai && b.alive);
+    if (!me || !rival || typeof g.debugPush !== 'function') return false;
+    rival.m.rotation.y = 0;
+    rival.cd = 0;
+    rival.p.set(0, me.p.y, 0);
+    rival.m.position.copy(rival.p);
+    me.p.set(0, me.p.y, 1.1);
+    me.m.position.copy(me.p);
+    me.v.set(0, 0, 0);
+    me.invulnT = 0;
+    me.stunT = 0;
+    g.debugPush(rival);
+    return (g.lastJuice?.pushedAt || 0) > 0;
+  })).toBeTruthy();
+
+  await expect.poll(() => page.evaluate(() => {
+    const me = window.__game?.beans?.find(b => b.name === '你');
+    const events = window.__vaEvents || [];
+    return (me?.stunT || 0) > 0 || events.some(e => e?.name === 'push_received');
+  }), { timeout: 5_000 }).toBeTruthy();
+
+  expect(pageErrors.filter(message => /SyntaxError|Unexpected token/i.test(message))).toEqual([]);
+});
+

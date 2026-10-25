@@ -84,7 +84,14 @@
 @keyframes heartbeat{0%,100%{box-shadow:inset 0 0 0 #f00}50%{box-shadow:inset 0 0 80px #f004}}
 #impactFlash{position:fixed;inset:0;pointer-events:none;background:#fff;opacity:0;z-index:5}
 #impactFlash.flash-now{animation:impact .18s ease-out}
+#impactFlash.pushed-now{animation:pushed-flash .28s ease-out;background:#ff6b8a}
+#impactFlash.revive-now{animation:revive-flash .45s ease-out;background:#9be7c4}
 @keyframes impact{0%{opacity:.42}100%{opacity:0}}
+@keyframes pushed-flash{0%{opacity:.55}100%{opacity:0}}
+@keyframes revive-flash{0%{opacity:.5}40%{opacity:.28}100%{opacity:0}}
+#crackWarn{position:fixed;inset:0;pointer-events:none;border:0 solid #ffcc00;opacity:0;z-index:4;box-shadow:inset 0 0 0 #ffcc0000}
+#crackWarn.warn-now{animation:crack-hud .9s ease-out}
+@keyframes crack-hud{0%{opacity:.75;border-width:14px;box-shadow:inset 0 0 90px #ffaa0044}55%{opacity:.4;border-width:8px}100%{opacity:0;border-width:0}}
 .float-text{position:fixed;z-index:9;font-weight:900;font-size:24px;text-shadow:0 2px 4px #000;pointer-events:none;animation:float-up .85s ease-out forwards}
 @keyframes float-up{from{transform:translateY(0) scale(.8);opacity:1}to{transform:translateY(-70px) scale(1.2);opacity:0}}
 #langBtn,#motionBtn{position:absolute;right:16px;top:140px;border:1px solid #fff8;border-radius:10px;background:#111a;color:#fff;padding:8px 12px;pointer-events:auto}
@@ -96,7 +103,7 @@
 <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
-<div id="hud"></div><div id="msg"></div><div id="sudden"></div><div id="impactFlash"></div><div id="captions" aria-live="polite"></div><div id="buildBanner">BlockBean v1.1.0 · build main</div><div id="maintenance"></div><div id="pauseOverlay" hidden><span id="pauseText">已暂停 · 按 Esc 继续</span><button id="quitHold">按住退出大厅</button></div>
+<div id="hud"></div><div id="msg"></div><div id="sudden"></div><div id="crackWarn"></div><div id="impactFlash"></div><div id="captions" aria-live="polite"></div><div id="buildBanner">BlockBean v1.1.0 · build main</div><div id="maintenance"></div><div id="pauseOverlay" hidden><span id="pauseText">已暂停 · 按 Esc 继续</span><button id="quitHold">按住退出大厅</button></div>
 <div id="splash"><h1>方块豆人：塌了就出局</h1><p>BlockBean Collapse · 方块塌了就出局，推开对手，最后一豆称王</p>
 <div id="hookClip"><div class="hook-bean"></div><div class="hook-tile"></div><p>3 秒预告：推开对手，地板先塌</p><button id="hookSkip">跳过预告</button></div>
 <div id="loadbar-wrap"><div id="loadbar" role="progressbar" aria-label="资源加载进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div></div><p id="load">加载模型中… 0%</p><button id="start" disabled>开始 / Start</button><small id="controls">P1 WASD/空格/E · P2 方向键/Numpad1/Numpad0</small>
@@ -121,5 +128,5 @@
 <div id="fallback" hidden><div class="fallback-card"><h2>需要开启图形加速</h2><p id="fallbackText">当前浏览器没有可用的 WebGL。请开启硬件加速或换一个支持 WebGL 的浏览器。</p><a href="https://github.com/liush2yuxjtu/blockbean-collapse/blob/main/CODEX_HANDOFF.md" target="_blank" rel="noreferrer">查看故障排查文档</a></div></div>
 <div id="result" hidden><div class="result-card"><h2 id="resultTitle"></h2><p id="resultDetail"></p><p id="contextTip" class="context-tip" aria-live="polite" hidden></p><div id="tipActions" class="tip-actions" hidden><button id="tipSkip" class="secondary">跳过提示</button><button id="tipNever" class="secondary">不再显示</button></div><p id="roast"></p><p id="bestBoard"></p><p id="clipStatus"></p><canvas id="shareCard" width="1200" height="630"></canvas><input id="clipHandle" class="secondary" placeholder="分享水印（可选）" maxlength="32"><textarea id="shareText" readonly></textarea><div class="result-actions"><button id="copyBtn">复制分享文案</button><button id="cardBtn" class="secondary">下载分享卡 PNG</button><button id="replayBtn">再来一局（R）</button><button id="continueSpectateBtn" class="secondary" hidden>继续观战</button><button id="resultLeaveBtn" class="secondary" hidden>退出</button></div></div></div>
 <div id="touch"><div id="stickZone" aria-label="移动摇杆"><div id="stickKnob"></div></div><button class="touch-btn" id="jumpBtn">跳</button><button class="touch-btn" id="pushBtn">推</button><button id="spectateBtn">切换观战</button><button id="freeLookBtn">自由视角</button><button id="muteBtn">🔊 音效</button><button id="spectateNextBtn" hidden>再来一局</button><button id="spectateLeaveBtn" hidden>退出</button><div id="spectateLabel"></div></div>
-<script type="module" src="game.js?v=player-splash-juice"></script>
+<script type="module" src="game.js?v=feel-fallguys-forgive"></script>
 </body></html>
